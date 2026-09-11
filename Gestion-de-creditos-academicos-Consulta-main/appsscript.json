@@ -1,0 +1,19 @@
+{
+  "timeZone": "America/Asuncion",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "DEPRECATED_ES5",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "gestionCreditosDEI",
+        "libraryId": "12FzHgDmE4-KhoV33scQ5qhwNLr9-81JBRyA6icC-K3vCtu1gT_NJIOep",
+        "version": "0",
+        "developmentMode": true
+      }
+    ]
+  },
+  "webapp": {
+    "executeAs": "USER_DEPLOYING",
+    "access": "ANYONE_ANONYMOUS"
+  }
+}

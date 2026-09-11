@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <?!= HtmlService.createHtmlOutputFromFile('styles').getContent(); ?>
+</head>
+<body>
+<div class="main-container">
+  <div class="content-wrapper">
+    <div class="content-wrapper card mb-3">
+      <img class="card-img-top mx-auto" src="https://i.imgur.com/A5gWkLy.jpg" alt="Encabezado DEI" style="max-width: 100%; height: auto;">
+      <div class="card-body text-center">
+        <small class="text-muted">Filipenses 4:13 - "Todo lo puedo en Cristo que me fortalece"</small>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin-bottom: var(--spacing-xl);">
+      <h2 style="color: var(--primary-color); font-weight: 700; margin: 0; font-size: 28px;">
+        🔎 Módulo de Carga de Créditos
+      </h2>
+      <p style="color: var(--text-secondary); margin-top: var(--spacing-xs); font-size: 16px;">
+        Sistema de gestión académica de créditos
+      </p>
+    </div>
+
+    <div class="search-form">
+      <!-- Matrícula Section -->
+      <div class="form-group">
+        <label for="matricula" class="form-label">Matrícula del Estudiante</label>
+        <div style="position: relative;">
+          <input type="text" class="form-control" id="matricula" placeholder="Ingrese la matrícula (ej: Y08376)" autocomplete="off">
+          <div id="suggestions"></div>
+        </div>
+        <small id="matriculaError" class="text-danger d-none">La matrícula debe ser alfanumérica (sin espacios ni símbolos).</small>
+        <input type="hidden" id="folderUrl">
+        <div id="selectedName"></div>
+      </div>
+
+      <!-- Category and Credits Row -->
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label" for="categoria">Categoría de Crédito</label>
+          <select id="categoria" class="form-control" required>
+            <option value="">Seleccione una Categoría</option>
+            <option value="A">A - Cursos Optativos</option>
+            <option value="B">B - Congresos</option>
+            <option value="C">C - Ayudantías</option>
+            <option value="D">D - Extensión</option>
+            <option value="E">E - Pasantías</option>
+            <option value="F">F - Otros</option>
+            <option value="SI">SI - Aprobación de Suficiencia Inglés</option>
+            <option value="AP">AP - Aprobación de Pasantía</option>
+          </select>
+        </div>
+        <div class="form-col form-col-fixed">
+          <label class="form-label" for="creditos">Créditos</label>
+          <input class="form-control" 
+                 type="number" 
+                 id="creditos" 
+                 min="0.5" 
+                 max="20" 
+                 step="0.5" 
+                 placeholder="1.5"
+                 list="creditValues" 
+                 required>
+          <datalist id="creditValues">
+            <option value="0.5">
+            <option value="1">
+            <option value="1.5">
+            <option value="2">
+            <option value="2.5">
+            <option value="3">
+            <option value="4">
+            <option value="5">
+            <option value="6">
+            <option value="8">
+            <option value="10">
+            <option value="12">
+            <option value="15">
+            <option value="20">
+          </datalist>
+          <small class="form-text text-muted">Solo valores en 0.5 incrementos (ej: 1, 1.5, 2)</small>
+        </div>
+      </div>
+
+      <!-- File Upload and Submit Section -->
+      <div class="form-group">
+        <div class="file-upload-section">
+          <div class="file-col">
+            <label class="form-label" for="pdfFile">Certificado (PDF)</label>
+            <input class="form-control" type="file" id="pdfFile" accept=".pdf" required>
+          </div>
+          <div class="button-col">
+            <button id="btnSubmit" class="btn-primary" onclick="procesarCarga()">
+              Cargar y Asignar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="mensaje"></div>
+    </div>
+  </div>
+</div>
+
+    <!-- Loader overlay -->
+    <div id="loaderOverlay" class="loader-overlay">
+      <div class="loader-box">
+        <div class="loader-title">Subiendo archivo <span id="loaderPercentText" class="loader-percent">0%</span></div>
+        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        <div id="loaderSub" class="loader-sub">Preparando subida...</div>
+      </div>
+    </div>
+
+<footer style="text-align: center; margin-top: var(--spacing-xl); padding-top: var(--spacing-lg); border-top: 1px solid var(--border-color); font-size: 14px; color: var(--text-secondary);">
+  <div style="font-weight: 500;">Desarrollado por Omar Irrazabal</div>
+  <div style="font-size: 12px; margin-top: 4px; opacity: 0.7;">Universidad Católica "Nuestra Señora de la Asunción" - DEI</div>
+</footer>
+
+<script>
+  // Función para obtener los datos del formulario y enviarlos a Apps Script
+  function procesarCarga() {
+    const matricula = document.getElementById('matricula').value.trim();
+    const categoria = document.getElementById('categoria').value;
+    const creditos = document.getElementById('creditos').value;
+    const fileElement = document.getElementById('pdfFile');
+    const folderUrl = document.getElementById('folderUrl').value || '';
+    const mensaje = document.getElementById('mensaje');
+    
+    // Validaciones mínimas
+    // Special categories: SI requires no credits but writes "Aprobado" in column 5; AP uploads only
+    const needsCredits = !(categoria === 'SI' || categoria === 'AP');
+    if (!matricula || !categoria || (needsCredits && !creditos) || fileElement.files.length === 0) {
+      mensaje.style.color = 'red';
+      mensaje.innerText = 'Por favor, complete todos los campos y adjunte un archivo.';
+      return;
+    }
+    
+    // Deshabilitar el botón y mostrar mensaje de espera
+    mensaje.style.color = 'blue';
+    mensaje.innerText = 'Procesando... no cierre esta ventana.';
+    const btn = document.getElementById('btnSubmit');
+    btn.disabled = true;
+
+    // Leer el archivo como Base64 (más fiable para Apps Script)
+    const file = fileElement.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      // e.target.result tiene la forma 'data:application/pdf;base64,AAAA...'
+      let base64String = e.target.result;
+      const prefix = ';base64,';
+      const idx = base64String.indexOf(prefix);
+      if (idx > -1) base64String = base64String.substring(idx + prefix.length);
+
+      // Mostrar loader
+      const overlay = document.getElementById('loaderOverlay');
+      const fill = document.getElementById('progressFill');
+      const pctText = document.getElementById('loaderPercentText');
+      const sub = document.getElementById('loaderSub');
+      overlay.style.display = 'flex';
+      fill.style.width = '0%'; pctText.innerText = '0%'; sub.innerText = 'Iniciando...';
+
+      // Simulated upload progress (will ramp until server response)
+      let simulated = 0;
+      let simInterval = setInterval(() => {
+        simulated += Math.random() * 8; // increase 0-8%
+        if (simulated > 95) simulated = 95; // don't reach 100 until server confirms
+        fill.style.width = simulated.toFixed(0) + '%';
+        pctText.innerText = simulated.toFixed(0) + '%';
+        sub.innerText = 'Subiendo...';
+      }, 300);
+
+      // Llamar a la función del lado del servidor (Google Apps Script)
+      google.script.run
+        .withSuccessHandler(function(res){
+          clearInterval(simInterval);
+          fill.style.width = '100%'; pctText.innerText = '100%'; sub.innerText = 'Completado';
+          setTimeout(()=>{ overlay.style.display='none'; }, 700);
+          manejarExito(res);
+        })
+        .withFailureHandler(function(err){
+          clearInterval(simInterval);
+          sub.innerText = 'Error en la subida';
+          pctText.innerText = '0%';
+          setTimeout(()=>{ overlay.style.display='none'; }, 1200);
+          manejarFallo(err);
+        })
+        .procesarDatos({
+          matricula: matricula,
+          categoria: categoria,
+          creditos: creditos,
+          folderUrl: folderUrl,
+          fileName: file.name,
+          mimeType: file.type,
+          fileData: base64String // Enviar como Base64 string
+        });
+    };
+    // track read progress
+    reader.onprogress = function(pe){
+      if (pe.lengthComputable) {
+        const p = Math.round((pe.loaded/pe.total)*40); // assign up to 40% for read
+        const fill = document.getElementById('progressFill');
+        const pctText = document.getElementById('loaderPercentText');
+        fill.style.width = p + '%'; pctText.innerText = p + '%';
+        document.getElementById('loaderSub').innerText = 'Leyendo archivo...';
+        document.getElementById('loaderOverlay').style.display = 'flex';
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // --- Autocomplete preload ---
+  let students = [];
+  function initAutocomplete() {
+    google.script.run.withSuccessHandler(function(list) {
+      students = list || [];
+    }).getAllStudents();
+
+    const input = document.getElementById('matricula');
+    const box = document.getElementById('suggestions');
+    input.addEventListener('input', function() {
+      const q = input.value.trim();
+      box.innerHTML = '';
+      document.getElementById('folderUrl').value = '';
+      const sel = document.getElementById('selectedName');
+      if (!q) { sel.innerText = ''; sel.classList.remove('selected-large'); }
+      if (q.length < 2) { box.style.display = 'none'; return; }
+      const qNorm = q.replace(/^0+/, '').toUpperCase();
+      const matches = students.filter(s => (s.matricula || '').replace(/^0+/, '').toUpperCase().indexOf(qNorm) === 0 || (s.matricula || '').indexOf(q) === 0);
+      if (matches.length === 0) { box.innerHTML = ''; box.style.display = 'none'; return; }
+      const list = document.createElement('div');
+      list.className = 'suggestions-list';
+      matches.slice(0, 30).forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'suggestion-item';
+        row.innerHTML = `<div><strong>${item.matricula}</strong> — ${item.nombre}</div><div class='meta'>${item.carrera || ''}</div>`;
+        row.onclick = function() {
+          input.value = item.matricula;
+          document.getElementById('folderUrl').value = item.folderUrl || '';
+          const sel = document.getElementById('selectedName');
+          sel.innerText = item.nombre || '';
+          sel.classList.add('selected-large');
+          box.innerHTML = '';
+          box.style.display = 'none';
+        };
+        list.appendChild(row);
+      });
+      box.innerHTML = '';
+      box.appendChild(list);
+      box.style.display = 'block';
+    });
+
+    // click fuera para ocultar
+    document.addEventListener('click', function(e) {
+      if (!box.contains(e.target) && e.target !== input) {
+        box.style.display = 'none';
+      }
+    });
+
+    // simple matricula validation on blur
+    const matInput = document.getElementById('matricula');
+    matInput.addEventListener('blur', function() {
+      const v = matInput.value.trim();
+      const err = document.getElementById('matriculaError');
+      if (v && !/^[a-zA-Z0-9]+$/.test(v)) {
+        err.classList.remove('d-none');
+        document.getElementById('selectedName').classList.remove('selected-large');
+      } else {
+        err.classList.add('d-none');
+      }
+    });
+  }
+
+  // Inicializar autocomplete al cargar la página
+  document.addEventListener('DOMContentLoaded', function() {
+    initAutocomplete();
+    
+    // Validación para créditos
+    const creditInput = document.getElementById('creditos');
+    creditInput.addEventListener('input', function() {
+      const value = parseFloat(this.value);
+      const categoria = document.getElementById('categoria').value;
+      const limite = LIMITES_CATEGORIA[categoria] || 20;
+      
+      if (!isNaN(value)) {
+        // Verificar que sea múltiplo de 0.5
+        if ((value * 2) % 1 !== 0) {
+          this.setCustomValidity('Los créditos deben ser múltiplos de 0.5 (ej: 1, 1.5, 2, 2.5...)');
+        } else if (value < 0.5) {
+          this.setCustomValidity('Los créditos deben ser al menos 0.5');
+        } else if (value > limite) {
+          this.setCustomValidity(`Esta categoría permite máximo ${limite} créditos. Se asignarán solo ${limite} créditos.`);
+        } else {
+          this.setCustomValidity('');
+        }
+      } else if (this.value !== '') {
+        this.setCustomValidity('Ingrese un número válido');
+      } else {
+        this.setCustomValidity('');
+      }
+    });
+  });
+
+  // Límites de créditos por categoría
+  const LIMITES_CATEGORIA = {
+    'A': 12,  // Cursos Optativos
+    'B': 4,   // Conferencias/Congresos/Seminarios
+    'C': 10,  // Ayudantías de Cátedra
+    'D': 2,   // Extensión Universitaria
+    'E': 10,  // Pasantías Supervisadas (Obligatorio)
+    'F': 4,   // Otros
+    'SI': 0,  // No aplica
+    'AP': 0   // No aplica
+  };
+
+  // Cambiar comportamiento del campo creditos según categoría
+  document.getElementById('categoria').addEventListener('change', function() {
+    const val = this.value;
+    const creditInput = document.getElementById('creditos');
+    const warningDiv = document.getElementById('creditWarning') || createCreditWarning();
+    
+    if (val === 'SI' || val === 'AP') {
+      creditInput.value = '';
+      creditInput.disabled = true;
+      creditInput.placeholder = 'No aplica para esta categoría';
+      creditInput.required = false;
+      warningDiv.style.display = 'none';
+    } else {
+      creditInput.disabled = false;
+      creditInput.placeholder = '1.5';
+      creditInput.required = true;
+      
+      // Actualizar límite máximo del input
+      const limite = LIMITES_CATEGORIA[val] || 20;
+      creditInput.max = limite;
+      
+      // Mostrar información del límite
+      const categoryText = this.options[this.selectedIndex].text;
+      warningDiv.innerHTML = `<small class="text-info">ℹ️ Límite para ${categoryText}: ${limite} créditos</small>`;
+      warningDiv.style.display = 'block';
+    }
+  });
+
+  function createCreditWarning() {
+    const warningDiv = document.createElement('div');
+    warningDiv.id = 'creditWarning';
+    warningDiv.style.marginTop = '4px';
+    const creditInput = document.getElementById('creditos');
+    creditInput.parentNode.appendChild(warningDiv);
+    return warningDiv;
+  }
+
+  // Manejadores de respuesta
+  function manejarExito(res) {
+    const mensaje = document.getElementById('mensaje');
+    mensaje.style.color = 'var(--success-color)';
+    mensaje.style.backgroundColor = 'rgba(40, 167, 69, 0.1)';
+    mensaje.style.border = '1px solid rgba(40, 167, 69, 0.2)';
+    mensaje.innerText = '✓ ' + res;
+    // Opcional: Limpiar el formulario
+    document.getElementById('matricula').value = '';
+    document.getElementById('categoria').value = '';
+    // Restaurar el campo de créditos
+    const creditInput = document.getElementById('creditos');
+    creditInput.value = '';
+    creditInput.disabled = false;
+    creditInput.required = true;
+    creditInput.placeholder = '1.5';
+    document.getElementById('pdfFile').value = '';
+    document.getElementById('selectedName').innerText = '';
+    document.getElementById('selectedName').classList.remove('selected-large');
+    document.querySelector('button').disabled = false;
+  }
+
+  function manejarFallo(error) {
+    const mensaje = document.getElementById('mensaje');
+    mensaje.style.color = 'var(--danger-color)';
+    mensaje.style.backgroundColor = 'rgba(220, 53, 69, 0.1)';
+    mensaje.style.border = '1px solid rgba(220, 53, 69, 0.2)';
+    mensaje.innerText = '⚠ ERROR: ' + error.message;
+    document.querySelector('button').disabled = false;
+  }
+</script>
+</body>
+</html>

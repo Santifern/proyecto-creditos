@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consulta de Créditos DEI</title>
+  <base target="_top">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <?!= include('Stylesheet'); ?>
+</head>
+
+
+  <body>
+  <!-- Botón fijo en la esquina superior izquierda en web, centrado en mobile -->
+  <div class="position-absolute w-100" style="top: 24px; left: 0; z-index: 1050;">
+    <div class="d-flex justify-content-center justify-content-md-start ps-md-4">
+      <a class="btn btn-home shadow" href="https://sites.google.com/uc.edu.py/creditosacademicosdei/inicio?authuser=0">🏠 Volver al Inicio</a>
+    </div>
+  </div>
+
+  <div class="main-container pt-5">
+
+    <div class="content-wrapper card mb-3">
+      <img class="card-img-top mx-auto" src="https://i.imgur.com/A5gWkLy.jpg" alt="Encabezado DEI" style="max-width: 100%; height: auto;">
+      <div class="card-body text-center">
+        <small class="text-muted">Filipenses 4:13 - "Todo lo puedo en Cristo que me fortalece"</small>
+      </div>
+    </div>
+
+    <h5 class="mt-3">🔎 Consultar Créditos</h5>
+    <div class="row search-form mb-3">
+      <div class="col-md-6 mb-2">
+        <label for="matricula" class="form-label">Matrícula</label>
+        <input type="text" class="form-control" id="matricula" placeholder="Ingresa tu matrícula Ej: Y00112" autocomplete="off">
+        <small id="matriculaError" class="text-danger d-none">La matrícula debe ser alfanumérica (sin espacios ni símbolos).</small>
+      </div>
+      
+      <div class="col-md-6 mb-2">
+        <label for="apellido" class="form-label">Apellido</label>
+        <input type="text" class="form-control" id="apellido" placeholder="Ingresa tu apellido Ej: Villalba" autocomplete="off">
+        <small id="apellidoError" class="text-danger d-none">Ingrese al menos 3 letras para buscar por apellido.</small>
+      </div>
+      
+      <div class="col-12 mt-2">
+        <button class="btn btn-primary" id="btnBuscar" onclick="buscarCreditos()">Buscar</button>
+      </div>
+      <div id="historial" class="mt-3">
+        <h6>🕘 Búsquedas recientes</h6>
+        <ul class="list-group" id="historialLista"></ul>
+      </div>
+    </div>
+
+    <!-- Controles de vista para resultados -->
+    <div id="controles-vista" class="row mb-3 d-none">
+      <div class="col-12">
+        <div class="card border-0 bg-light">
+          <div class="card-body py-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="mb-0 text-muted">📊 Modo de visualización</h6>
+              <div class="btn-group" role="group" aria-label="Controles de vista">
+                <input type="radio" class="btn-check" name="vista-radio" id="vista-simplificada" autocomplete="off" checked>
+                <label class="btn btn-outline-primary btn-sm" for="vista-simplificada" onclick="cambiarVista('simplificada')">
+                  📋 Vista Simplificada
+                </label>
+                
+                <input type="radio" class="btn-check" name="vista-radio" id="vista-completa" autocomplete="off">
+                <label class="btn btn-outline-primary btn-sm" for="vista-completa" onclick="cambiarVista('completa')">
+                  📊 Vista Completa
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="loader" aria-label="Cargando datos" role="dialog" aria-live="polite">
+      <div class="loader-content">
+        <img src="https://i.gifer.com/5SvD.gif" alt="Cargando..." class="loader-image">
+        <div class="spinner" aria-hidden="true"></div>
+        <p id="mensajeCarga" aria-live="polite"></p>
+        <div class="progress-bar" aria-hidden="true">
+          <div class="progress-fill"></div>
+        </div>
+        <p class="loading-subtitle">Por favor, espera un momento...</p>
+      </div>
+    </div>
+
+    <div id="resultado" class="content-wrapper"></div>
+
+    <h1 class="mt-5 mb-4">Categorías de Créditos Académicos</h1>
+
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <div class="card category-card">
+          <div class="card-body">
+            <h5 class="card-title category-title">📘 Cursos Optativos (A)</h5>
+            <p class="card-text">Asignaturas cursadas en carreras afines de la misma Facultad, otras facultades de la Universidad o universidades nacionales o extranjeras.</p>
+            <button class="category-details-btn" onclick="toggleDetails('details-a')">Ver más detalles</button>
+            <div id="details-a" class="category-details">
+              <h6>📋 Requisitos y Especificaciones:</h6>
+              <ul>
+                <li><span class="highlight">Máximo 12 créditos</span> en esta categoría</li>
+                <li>Asignaturas de <strong>carreras afines</strong> de la misma Facultad</li>
+                <li>Materias de <strong>otras facultades</strong> de la Universidad Católica</li>
+                <li>Cursos de <strong>universidades nacionales o extranjeras</strong> reconocidas</li>
+              
+              </ul>
+              </ul>
+              <h6>📝 Actividades recomendadas:</h6>
+              <ul>
+                <li>Asignaturas DEI: 1 crédito por cada 16 horas cátedras</li>
+                <li>Asignaturas DICIA: 1 crédito por cada 32 horas cátedras</li>
+                <li>Cursos Externos u online: 1 crédito por cada 48 horas reloj</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 mb-3">
+        <div class="card category-card">
+          <div class="card-body">
+            <h5 class="card-title category-title">🎓 Congresos, Seminarios y Conferencias (B)</h5>
+            <p class="card-text">Eventos académicos organizados por instituciones competentes que aporten a la formación del ingeniero/a con aprobación del DEI.</p>
+            <button class="category-details-btn" onclick="toggleDetails('details-b')">Ver más detalles</button>
+            <div id="details-b" class="category-details">
+              <h6>📋 Requisitos y Especificaciones:</h6>
+              <ul>
+                <li><span class="highlight">Máximo 4 créditos</span> en esta categoría</li>
+                <li>Eventos organizados por <strong>instituciones reconocidas</strong></li>
+                <li>Temática relacionada con la <strong>ingeniería</strong> o áreas afines</li>
+                <li>Certificado de participación</li>
+              </ul>
+              <h6>📝Actividades recomendadas:</h6>
+              <ul>
+                <li>Tigo Campus Party: 1 crédito por asistencia </li>
+                <li>Congreso Innotec: 2 créditos por asistencia</li>
+                <li>Congreso Innotec: 3 créditos por Hackathon</li>
+                <li>JIT-CITA: 1 crédito por asistencia a las charlas</li>
+                <li>JIT-CITA: 1 crédito por asistencia a los tutoriales</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 mb-3">
+        <div class="card category-card">
+          <div class="card-body">
+            <h5 class="card-title category-title">🧑‍🏫 Ayudantías de Cátedra (C)</h5>
+            <p class="card-text">Apoyo a actividades docentes, principalmente en prácticas y laboratorios, bajo la supervisión del Departamento.</p>
+            <button class="category-details-btn" onclick="toggleDetails('details-c')">Ver más detalles</button>
+            <div id="details-c" class="category-details">
+              <h6>📋 Requisitos y Especificaciones:</h6>
+              <ul>
+                <li><span class="highlight">Máximo 10 créditos</span> en esta categoría</li>
+                <li>Supervisión del <strong>profesor titular</strong></li>
+                <li>Mínimo <strong>16 horas cátedras</strong> de actividad por 1 crédito</li>
+                <li>Apoyo en prácticas, laboratorios o tutorías</li>
+                <li>Evaluación satisfactoria del desempeño</li>
+              </ul>
+              <h6>📝 Procedimiento:</h6>
+              <ul>
+                <li>1- Se debe solicitar la ayudantía a través del formulario correspondiente habilitado cada semestre en el classroom.</li>
+                <li>2- Una vez aprobada la ayudantía, se debe coordinar con el profesor titular las actividades a realizar.</li>
+                <li>3- Una vez finalizada se debe elaborar un informe de actividades realizadas con las horas cátedra correspondientes firmada por el docente</li>
+                <li>4- Se debe solicitar la asignación de créditos con el formulario de solicitud de créditos.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 mb-3">
+        <div class="card category-card">
+          <div class="card-body">
+            <h5 class="card-title category-title">🤝 Extensión Universitaria (D)</h5>
+            <p class="card-text">Actividades humanísticas, educativas o tecnológicas que fortalecen la identidad cristiana y aportan al desarrollo profesional.</p>
+            <button class="category-details-btn" onclick="toggleDetails('details-d')">Ver más detalles</button>
+            <div id="details-d" class="category-details">
+              <h6>📋 Requisitos y Especificaciones:</h6>
+              <ul>
+                <li><span class="highlight">Máximo 2 créditos</span> en esta categoría</li>
+                <li>Actividades de <strong>responsabilidad social</strong></li>
+                <li>Proyectos de <strong>voluntariado</strong> educativo o tecnológico</li>
+                <li>Fortalecimiento de la <strong>identidad cristiana</strong></li>
+              </ul>
+              <h6>📝 Actividades sugeridas:</h6>
+              <ul>
+                <li>Un techo para mi país: 1 crédito por asistencia</li>
+                <li>Colecta de alimentos: 1 crédito</li>
+                <li>Voluntariado en Teletón: 1 crédito</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 mb-3">
+        <div class="card category-card">
+          <div class="card-body">
+            <h5 class="card-title category-title">🛠️ Pasantías Supervisadas (E)</h5>
+            <p class="card-text">Prácticas profesionales, de investigación, de servicios, o en proyectos concretos, conforme a la legislación</p>
+            <button class="category-details-btn" onclick="toggleDetails('details-e')">Ver más detalles</button>
+            <div id="details-e" class="category-details">
+              <h6>📋 Requisitos y Especificaciones:</h6>
+              <ul>
+                <li><span class="highlight">Máximo 10 créditos</span> en esta categoría</li>
+                <li>Las Pasantías son obligatorias y requieren un mínimo de 7 créditos computados</li>
+                <li>Prácticas en <strong>empresas o instituciones</strong> reconocidas</li>
+                <li>Supervisión académica del <strong>DEI</strong></li>
+                <li>Mínimo <strong>48 horas reloj</strong> por crédito</li>
+                <li>Actividades relacionadas con la carrera</li>
+              </ul>
+              <h6>📝 Documentación Requerida:</h6>
+              <ul>
+                <li>Aprobación de Propuesta de Pasantías</li>
+                <li>Informe Final de actividades realizadas con la carga horaria correspondiente</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 mb-3">
+        <div class="card category-card">
+          <div class="card-body">
+            <h5 class="card-title category-title">📚 Otras Actividades (F)</h5>
+            <p class="card-text">Toda otra actividad validada por el Comité del DEI que contribuya a la formación integral del profesional.</p>
+            <button class="category-details-btn" onclick="toggleDetails('details-f')">Ver más detalles</button>
+            <div id="details-f" class="category-details">
+              <h6>📋 Requisitos y Especificaciones:</h6>
+              <ul>
+                <li><span class="highlight">Máximo 4 créditos</span> en esta categoría</li>
+                <li>Actividades <strong>no contempladas</strong> en otras categorías</li>
+                <li>Validación previa del <strong>Comité del DEI</strong></li>
+                <li>Contribución a la <strong>formación integral</strong></li>
+                <li>Evaluación caso por caso</li>
+              </ul>
+              <h6>📝 Ejemplos de Actividades:</h6>
+              <ul>
+                <li>Cursos ECI en Buenos Aires: 2 créditos por cada curso aprobado y certificado.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-12 mb-3">
+        <div class="card category-card">
+          <div class="card-body">
+            <h5 class="card-title category-title">🇬🇧 Suficiencia en Inglés</h5>
+            <p class="card-text">Requisito obligatorio. Se debe alcanzar al menos nivel B1 (Intermedio) según el Marco Común Europeo de Referencia (MCER).</p>
+            <button class="category-details-btn" onclick="toggleDetails('details-ingles')">Ver más detalles</button>
+            <div id="details-ingles" class="category-details">
+              <h6>📋 Requisitos y Especificaciones:</h6>
+              <ul>
+                <li><span class="highlight">Nivel B1 mínimo</span> según MCER</li>
+                <li>Examen oficial reconocido internacionalmente</li>
+                <li>Certificación de institutos de idiomas acreditados</li>
+                <li><strong>Requisito obligatorio</strong> para la graduación</li>
+              </ul>
+              <h6>📝 Opciones de Certificación:</h6>
+              <ul>
+                <li>CCPA online con Versant Test </li>
+                <li>Duolingo Test online</li>
+                <li>Certificado del Anglo</li>
+                <li>Otras instituciones que cumplan con los requisitos del MCER</li>
+              </ul>
+              <h6>💡 Recomendaciones:</h6>
+              <ul>
+                <li>Obtener la suficiencia en Inglés en los primeros semestres</li>
+                <li>Considerar que es obligatorio y Requisito para la presentación de Tema de PFC</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-wrapper mt-5">
+      <h2 class="text-center mb-4" style="color: var(--primary-color);">❓ Preguntas Frecuentes</h2>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <div class="faq-item p-3" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border-left: 4px solid var(--primary-color);">
+            <h6 style="color: var(--primary-color); font-weight: bold;">🎯 ¿Cuántos créditos necesito para graduarme?</h6>
+            <p style="margin-bottom: 0; font-size: 0.9rem;">Necesitas <strong>20 créditos académicos</strong> distribuidos en las categorías A-F, más la <strong>suficiencia en inglés</strong>. Se requiere 7 créditos de Pasantías como mínimo. (Obligatorio)</p>
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <div class="faq-item p-3" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border-left: 4px solid var(--primary-color);">
+            <h6 style="color: var(--primary-color); font-weight: bold;">⏰ ¿Cuándo debo completar los créditos?</h6>
+            <p style="margin-bottom: 0; font-size: 0.9rem;">Antes de presentar tu propuesta de PFC. Es recomendable ir completándolos durante la carrera.</p>
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <div class="faq-item p-3" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border-left: 4px solid var(--primary-color);">
+            <h6 style="color: var(--primary-color); font-weight: bold;">📝 ¿Cómo valido mis créditos?</h6>
+            <p style="margin-bottom: 0; font-size: 0.9rem;">Presenta la documentación requerida al DEI a través de los formularios online correspondientes.</p>
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <div class="faq-item p-3" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border-left: 4px solid var(--primary-color);">
+            <h6 style="color: var(--primary-color); font-weight: bold;">🔍 ¿No aparecen mis créditos?</h6>
+            <p style="margin-bottom: 0; font-size: 0.9rem;">Verifica el estado de tu solicitud en la mesa de entrada DEI Form.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="row text-center">
+        <div class="col-md-6">
+          <strong>📧 Contacto DEI</strong><br>
+          <a href="mailto:dei@uc.edu.py" class="text-white">dei@uc.edu.py</a>
+        </div>
+        <div class="col-md-6">
+          <strong>🛠️ Desarrollado con ❤️ por</strong><br>
+          <a href="mailto:omar.irrazabal@uc.edu.py" class="text-white">Omar Irrazabal OI- setiembre 2025</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <?!= include('ConfigJS'); ?>
+  <?!= include('JavaScript'); ?>
+</body>
+</html>

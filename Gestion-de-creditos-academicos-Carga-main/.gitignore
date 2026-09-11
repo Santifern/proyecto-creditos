@@ -1,0 +1,33 @@
+# Google Apps Script
+.clasp.json
+
+# Archivos de configuración local
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencias de Node
+node_modules/
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Credenciales (si las hubiera)
+credentials.json
+config.json
+
+# Archivos de backup
+*.backup
+*.bak
+
+# Archivos de editor
+*.swp
+*.swo
+*~

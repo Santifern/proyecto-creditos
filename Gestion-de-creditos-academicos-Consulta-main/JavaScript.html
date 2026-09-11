@@ -1,0 +1,1005 @@
+<script>
+// Funciones para Google Apps Script
+// Todas estas funciones se ejecutan en el cliente
+
+/**
+ * Variables globales del lado del cliente
+ */
+var allResults = [];
+var currentPage = 1;
+var loadingInterval = null;
+var vistaActual = 'simplificada'; // Nueva variable para controlar la vista
+
+/**
+ * Inicializa la aplicación cuando el DOM está listo
+ */
+function inicializarApp() {
+  mostrarHistorial();
+  
+  // Agregar event listeners para Enter
+  var matriculaInput = document.getElementById("matricula");
+  var apellidoInput = document.getElementById("apellido");
+  
+  if (matriculaInput) {
+    matriculaInput.addEventListener('keydown', handleKeyDown);
+  }
+  
+  if (apellidoInput) {
+    apellidoInput.addEventListener('keydown', handleKeyDown);
+  }
+  
+  // Agregar listener para cambios de tamaño de ventana
+  window.addEventListener('resize', function() {
+    // Debounce para evitar demasiadas llamadas
+    clearTimeout(window.resizeTimeout);
+    window.resizeTimeout = setTimeout(function() {
+      // Re-renderizar la tabla si hay resultados
+      if (allResults && allResults.length > 0) {
+        renderTablaPaginada();
+      }
+    }, 250);
+  });
+}
+
+/**
+ * Cambia entre vista simplificada y completa
+ */
+function cambiarVista(tipoVista) {
+  vistaActual = tipoVista;
+  
+  // Actualizar botones
+  var btnSimplificada = document.getElementById('vista-simplificada');
+  var btnCompleta = document.getElementById('vista-completa');
+  
+  if (btnSimplificada && btnCompleta) {
+    if (tipoVista === 'simplificada') {
+      btnSimplificada.checked = true;
+      btnCompleta.checked = false;
+    } else {
+      btnSimplificada.checked = false;
+      btnCompleta.checked = true;
+    }
+  }
+  
+  // Re-renderizar la tabla si hay resultados
+  if (allResults && allResults.length > 0) {
+    renderTablaPaginada();
+  }
+}
+
+/**
+ * Maneja el evento keydown para búsqueda con Enter
+ */
+function handleKeyDown(event) {
+  if (event.keyCode === 13) {
+    buscarCreditos();
+  }
+}
+
+/**
+ * Oculta el loader con animación suave
+ */
+function hideLoader() {
+  var loader = document.getElementById("loader");
+  if (loader) {
+    loader.style.opacity = "0";
+    setTimeout(function() {
+      loader.style.display = "none";
+    }, CONFIG.LOADER_FADE_DURATION);
+  }
+}
+
+/**
+ * Muestra mensajes de carga rotativos
+ */
+function iniciarMensajesCarga() {
+// Los mensajes de carga ahora se obtienen desde CONFIG.LOADING_MESSAGES  var mensajeCarga = document.getElementById("mensajeCarga");
+  if (!mensajeCarga) return;
+
+  var index = 0;
+  loadingInterval = setInterval(function() {
+    mensajeCarga.textContent = CONFIG.LOADING_MESSAGES[index];
+    index = (index + 1) % CONFIG.LOADING_MESSAGES.length;
+  }, CONFIG.LOADER_MESSAGE_INTERVAL);
+
+  return loadingInterval;
+}
+
+/**
+ * Detiene los mensajes de carga
+ */
+function detenerMensajesCarga() {
+  if (loadingInterval) {
+    clearInterval(loadingInterval);
+    loadingInterval = null;
+  }
+}
+
+/**
+ * Valida la matrícula ingresada
+ */
+function validarMatricula(matricula) {
+  var matriculaRegex = /^[a-zA-Z0-9]+$/;
+  return matricula === "" || matriculaRegex.test(matricula);
+}
+
+/**
+ * Valida el apellido ingresado
+ */
+function validarApellido(apellido) {
+  return apellido === "" || apellido.length >= CONFIG.MIN_APELLIDO_LENGTH;
+}
+
+/**
+ * Muestra errores de validación
+ */
+function mostrarError(campo, mensaje) {
+  if (typeof mensaje === 'undefined') {
+    mensaje = null;
+  }
+  var errorElement = document.getElementById(campo + "Error");
+  if (errorElement) {
+    if (mensaje) {
+      errorElement.textContent = mensaje;
+    }
+    errorElement.classList.remove("d-none");
+  }
+}
+
+/**
+ * Oculta todos los errores de validación
+ */
+function ocultarErrores() {
+  var errores = ['matriculaError', 'apellidoError'];
+  errores.forEach(function(errorId) {
+    var errorElement = document.getElementById(errorId);
+    if (errorElement) {
+      errorElement.classList.add("d-none");
+    }
+  });
+}
+
+/**
+ * Función principal de búsqueda de créditos
+ */
+function buscarCreditos() {
+  var matricula = document.getElementById("matricula").value.trim();
+  var apellido = document.getElementById("apellido").value.trim();
+  var loader = document.getElementById("loader");
+
+  // Limpiar errores previos
+  ocultarErrores();
+
+  // Validaciones
+  if (!validarMatricula(matricula)) {
+    mostrarError('matricula');
+    return;
+  }
+
+  if (!validarApellido(apellido)) {
+    mostrarError('apellido');
+    return;
+  }
+
+  if (matricula === "" && apellido === "") {
+    mostrarError('matricula', "Por favor ingrese una matrícula o apellido para buscar.");
+    return;
+  }
+
+  // Mostrar loader
+  if (loader) {
+    loader.style.display = "block";
+    loader.style.opacity = "1";
+  }
+
+  // Iniciar mensajes de carga
+  iniciarMensajesCarga();
+
+  // Realizar búsqueda
+  if (matricula) {
+    buscarPorMatricula(matricula);
+  } else {
+    buscarPorApellido(apellido);
+  }
+}
+
+/**
+ * Busca créditos por matrícula
+ * @param {string} matricula - Matrícula del estudiante
+ */
+function buscarPorMatricula(matricula) {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      detenerMensajesCarga();
+      hideLoader();
+      displayResults(result);
+      guardarEnHistorial("matricula", matricula);
+    })
+    .withFailureHandler(function(error) {
+      detenerMensajesCarga();
+      hideLoader();
+      mostrarErrorBusqueda(error);
+    })
+    .buscarCreditos(matricula);
+}
+
+/**
+ * Busca créditos por apellido
+ * @param {string} apellido - Apellido del estudiante
+ */
+function buscarPorApellido(apellido) {
+  google.script.run
+    .withSuccessHandler(function(results) {
+      detenerMensajesCarga();
+      hideLoader();
+      displayResults(results);
+      guardarEnHistorial("apellido", apellido);
+    })
+    .withFailureHandler(function(error) {
+      detenerMensajesCarga();
+      hideLoader();
+      mostrarErrorBusqueda(error);
+    })
+    .buscarCreditosPorApellido(apellido);
+}
+
+/**
+ * Muestra error de búsqueda
+ */
+function mostrarErrorBusqueda(error) {
+  var resultadoDiv = document.getElementById("resultado");
+  if (resultadoDiv) {
+    resultadoDiv.innerHTML = 
+      '<div class="alert alert-danger">' +
+        '<h5>❌ Error en la búsqueda</h5>' +
+        '<p>Error: ' + (error.message || 'No se encontraron resultados') + '</p>' +
+        '<hr>' +
+        '<p class="mb-0"><strong>Intenta nuevamente</strong> o contacta al DEI si el problema persiste.</p>' +
+      '</div>';
+  }
+}
+
+/**
+ * Valida si una URL es válida
+ */
+function esURLValida(url) {
+  if (!url || typeof url !== 'string') return false;
+  url = url.trim();
+  // Acepta enlaces de Google Drive aunque tengan parámetros extra
+  var driveRegex = /^https?:\/\/(drive|docs)\.google\.com\//i;
+  try {
+    var parsed = new URL(url);
+    if (['http:', 'https:'].includes(parsed.protocol)) {
+      // Si es Google Drive, lo acepta aunque tenga parámetros
+      if (driveRegex.test(url)) return true;
+      // Si es otro enlace, debe ser válido
+      return true;
+    }
+    return false;
+  } catch (e) {
+    // Si no se puede parsear, pero parece Google Drive, lo acepta
+    if (driveRegex.test(url)) return true;
+    return false;
+  }
+}
+
+/**
+ * Limpia HTML de una cadena de texto
+ */
+function limpiarHTML(htmlString) {
+  var div = document.createElement('div');
+  div.innerHTML = htmlString;
+  return div.textContent || div.innerText || '';
+}
+
+/**
+ * Muestra los resultados de la búsqueda
+ */
+function displayResults(results) {
+  // Registrar en consola para depuración
+  console.log("Datos recibidos:", results);
+  
+  allResults = Array.isArray(results) ? results : [results];
+  currentPage = 1;
+  renderTablaPaginada();
+}
+
+/**
+ * Crea una barra de progreso visual
+ */
+function crearBarra(actual, maximo, categoria) {
+  var porcentaje = Math.min((actual / maximo) * 100, 100);
+  var color = porcentaje === 100 ? '#28a745' : porcentaje >= 75 ? '#ffc107' : '#dc3545';
+  
+  return '<div style="position: relative;">' +
+    '<span style="font-weight: bold;">' + actual + '/' + maximo + '</span>' +
+    '<div style="width: 100%; height: 6px; background-color: #e9ecef; border-radius: 3px; margin-top: 3px;">' +
+      '<div style="width: ' + porcentaje + '%; height: 100%; background-color: ' + color + '; border-radius: 3px; transition: width 0.3s ease;"></div>' +
+    '</div>' +
+  '</div>';
+}
+
+/**
+ * Construye una fila de la tabla de resultados
+ */
+function construirFila(data) {
+  var nombreLimpio = limpiarHTML(data.nombreAlumno || '');
+  var enlace = typeof data.enlaceAlumno === 'string' ? data.enlaceAlumno.trim() : '';
+  var enlaceValido = esURLValida(enlace);
+  var detalleHtml = '';
+  if (enlaceValido) {
+    detalleHtml = '<a href="' + enlace + '" target="_blank" class="detail-btn btn btn-primary">Ver Detalles</a>';
+  } else {
+    detalleHtml = '<button class="detail-btn btn btn-secondary" disabled style="opacity:0.7;cursor:not-allowed;">Sin detalles disponibles</button>';
+  }
+  
+  var totalCreditos = data.cantidadCreditoAlumnoTotal || 0;
+  var creditosColor = totalCreditos >= 20 ? '#28a745' : '#dc3545';
+  var creditosTexto = totalCreditos >= 20 ? ' ✅' : ' (Faltan ' + (20 - totalCreditos) + ')';
+  
+  // Verificación más robusta para determinar si la suficiencia en inglés está aprobada
+  var aprobado = false;
+  if (data.AprobacionSI) {
+    var valor = String(data.AprobacionSI).toLowerCase();
+    aprobado = valor === 'sí' || valor === 'si' || valor === 'yes' || valor === 'true' || valor === '1' || valor === 'aprobado';
+  }
+  var aprobacionColor = aprobado ? '#28a745' : '#dc3545';
+  var aprobacionIcono = aprobado ? '✅' : '❌';
+
+  return '<tr>' +
+      '<td>' + nombreLimpio + '</td>' +
+      '<td>' + (data.carrera || '') + '</td>' +
+      '<td style="text-align: center; color: ' + aprobacionColor + '; font-weight: bold;">' +
+        (aprobado ? 'APROBADO ' : 'NO APROBADO ') + aprobacionIcono +
+      '</td>' +
+      '<td>' + crearBarra(data.MateriasCursos || 0, 12, 'A') + '</td>' +
+      '<td>' + crearBarra(data.Congresos || 0, 4, 'B') + '</td>' +
+      '<td>' + crearBarra(data.AyudantiasPasantias || 0, 10, 'C') + '</td>' +
+      '<td>' + crearBarra(data.Investigacion || 0, 2, 'D') + '</td>' +
+      '<td>' + crearBarra(data.Extension || 0, 10, 'E') + '</td>' +
+      '<td>' + crearBarra(data.Otros || 0, 4, 'F') + '</td>' +
+      '<td style="font-weight: bold; color: ' + creditosColor + ';">' +
+        totalCreditos + '/20' + creditosTexto +
+      '</td>' +
+    '</tr>' +
+    '<tr><td colspan="10" class="text-center">' + detalleHtml + '</td></tr>';
+}
+
+/**
+ * Renderiza la tabla con paginación
+ */
+function renderTablaPaginada() {
+  var resultadoDiv = document.getElementById("resultado");
+  var controlesVista = document.getElementById("controles-vista");
+  var RESULTS_PER_PAGE = CONFIG.RESULTS_PER_PAGE;
+  
+  if (!resultadoDiv) return;
+
+  // Validación extendida: sin resultados, array vacío, o solo objetos vacíos
+  var datosValidos = Array.isArray(allResults) && allResults.some(function(obj) {
+    if (!obj || typeof obj !== 'object') return false;
+    // Considera vacío si no tiene nombre, carrera ni créditos
+    return Object.keys(obj).length > 0 && (obj.nombreAlumno || obj.carrera || obj.cantidadCreditoAlumnoTotal);
+  });
+
+  if (!allResults || allResults.length === 0 || !datosValidos) {
+    resultadoDiv.innerHTML = 
+      '<div class="alert alert-warning text-center">' +
+        '<h5>📭 Alumno no encontrado</h5>' +
+        '<p>No se encontró información de créditos para la matrícula ingresada.</p>' +
+        '<hr>' +
+        '<p class="mb-0">Verifica que la matrícula esté correctamente escrita.<br>' +
+        'Si crees que es un error, contacta al DEI.</p>' +
+      '</div>';
+    
+    // Ocultar controles de vista si no hay resultados
+    if (controlesVista) {
+      controlesVista.classList.add('d-none');
+    }
+    return;
+  }
+
+  // Mostrar controles de vista si hay resultados
+  if (controlesVista) {
+    controlesVista.classList.remove('d-none');
+  }
+
+  var totalPages = Math.ceil(allResults.length / RESULTS_PER_PAGE);
+  var start = (currentPage - 1) * RESULTS_PER_PAGE;
+  var end = start + RESULTS_PER_PAGE;
+  var datosPagina = allResults.slice(start, end);
+
+  // Obtenemos el nombre del alumno para el título del PDF
+  var nombreAlumno = allResults.length > 0 ? limpiarHTML(allResults[0].nombreAlumno || 'Alumno') : 'Alumno';
+  
+  var tableHtml;
+  
+  if (vistaActual === 'simplificada') {
+    tableHtml = renderVistaSimplificada(datosPagina, nombreAlumno, totalPages);
+  } else {
+    tableHtml = renderVistaCompleta(datosPagina, nombreAlumno, totalPages);
+  }
+
+  resultadoDiv.innerHTML = tableHtml;
+}
+
+/**
+ * Renderiza la vista simplificada con solo datos esenciales
+ */
+function renderVistaSimplificada(datosPagina, nombreAlumno, totalPages) {
+  var isMobile = window.innerWidth <= 768;
+  
+  if (isMobile) {
+    return '<div id="resultados-container" class="mt-4 vista-simplificada">' +
+      '<div class="d-flex justify-content-between align-items-center mb-3">' +
+        '<h4 class="mb-0">📋 Vista Simplificada</h4>' +
+        '<button id="btnExportarPDF" class="btn btn-danger btn-sm" onclick="exportarAPDF(\'' + nombreAlumno + '\')">📄 PDF</button>' +
+      '</div>' +
+      '<div class="mobile-card-container">' +
+        datosPagina.map(construirTarjetaMovil).join('') +
+      '</div>' +
+      '<div class="table-responsive d-none" id="tabla-resultados">' +
+        '<table class="table table-bordered table-hover">' +
+          '<thead>' +
+            '<tr>' +
+              '<th>👤 Estudiante</th>' +
+              '<th>🎓 Matrícula</th>' +
+              '<th>🇬🇧 Suficiencia en Inglés</th>' +
+              '<th>📊 Total de Créditos</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' +
+            datosPagina.map(construirFilaSimplificada).join('') +
+          '</tbody>' +
+        '</table>' +
+      '</div>' +
+      '<div class="text-center mt-3">' +
+        renderPaginacion(totalPages) +
+      '</div>' +
+    '</div>';
+  }
+  
+  return '<div id="resultados-container" class="mt-4 vista-simplificada">' +
+    '<div class="d-flex justify-content-between align-items-center mb-3">' +
+      '<h4 class="mb-0">📋 Vista Simplificada</h4>' +
+      '<button id="btnExportarPDF" class="btn btn-danger" onclick="exportarAPDF(\'' + nombreAlumno + '\')"><i class="bi bi-file-earmark-pdf"></i> Exportar a PDF</button>' +
+    '</div>' +
+    '<div class="table-responsive" id="tabla-resultados">' +
+      '<table class="table table-bordered table-hover">' +
+        '<thead>' +
+          '<tr>' +
+            '<th>👤 Estudiante</th>' +
+            '<th>🎓 Matrícula</th>' +
+            '<th>🇬🇧 Suficiencia en Inglés</th>' +
+            '<th>📊 Total de Créditos</th>' +
+          '</tr>' +
+        '</thead>' +
+        '<tbody>' +
+          datosPagina.map(construirFilaSimplificada).join('') +
+        '</tbody>' +
+      '</table>' +
+    '</div>' +
+    '<div class="text-center mt-3">' +
+      renderPaginacion(totalPages) +
+    '</div>' +
+  '</div>';
+}
+
+/**
+ * Renderiza la vista completa con todos los detalles
+ */
+function renderVistaCompleta(datosPagina, nombreAlumno, totalPages) {
+  var isMobile = window.innerWidth <= 768;
+  
+  if (isMobile) {
+    return '<div id="resultados-container" class="mt-4 vista-completa">' +
+      '<div class="d-flex justify-content-between align-items-center mb-3">' +
+        '<h4 class="mb-0">📊 Vista Completa</h4>' +
+        '<button id="btnExportarPDF" class="btn btn-danger btn-sm" onclick="exportarAPDF(\'' + nombreAlumno + '\')">📄 PDF</button>' +
+      '</div>' +
+      '<div class="mobile-card-container">' +
+        datosPagina.map(construirTarjetaMovilCompleta).join('') +
+      '</div>' +
+      '<div class="table-responsive d-none" id="tabla-resultados">' +
+        '<table class="table table-bordered table-hover">' +
+          '<thead>' +
+            '<tr>' +
+              '<th>Alumno/a</th>' +
+              '<th>Carrera</th>' +
+              '<th>Suficiencia en Inglés<br><span class="requisito-obligatorio">(Requisito obligatorio)</span></th>' +
+              '<th>Cursos Optativos (A) máx: 12</th>' +
+              '<th>Conferencias/Congresos/Seminarios (B) máx: 4</th>' +
+              '<th>Ayudantías de Cátedra (C) máx: 10</th>' +
+              '<th>Extensión Universitaria (D) máx: 2</th>' +
+              '<th>Pasantías Supervizadas (E) máx: 10<br><span class="requisito-obligatorio">(Obligatorio)</span></th>' +
+              '<th>Otros (F) máx: 4</th>' +
+              '<th>Total Créditos<br><span class="requisito-obligatorio">(Meta: 20)</span></th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' +
+            datosPagina.map(construirFila).join('') +
+          '</tbody>' +
+        '</table>' +
+      '</div>' +
+      '<div class="text-center mt-3">' +
+        renderPaginacion(totalPages) +
+      '</div>' +
+    '</div>';
+  }
+  
+  return '<div id="resultados-container" class="mt-4 vista-completa">' +
+    '<div class="d-flex justify-content-between align-items-center mb-3">' +
+      '<h4 class="mb-0">📊 Vista Completa</h4>' +
+      '<button id="btnExportarPDF" class="btn btn-danger" onclick="exportarAPDF(\'' + nombreAlumno + '\')"><i class="bi bi-file-earmark-pdf"></i> Exportar a PDF</button>' +
+    '</div>' +
+    '<div class="table-responsive" id="tabla-resultados">' +
+      '<table class="table table-bordered table-hover">' +
+        '<thead>' +
+          '<tr>' +
+            '<th>Alumno/a</th>' +
+            '<th>Carrera</th>' +
+            '<th>Suficiencia en Inglés<br><span class="requisito-obligatorio">(Requisito obligatorio)</span></th>' +
+            '<th>Cursos Optativos (A) máx: 12</th>' +
+            '<th>Conferencias/Congresos/Seminarios (B) máx: 4</th>' +
+            '<th>Ayudantías de Cátedra (C) máx: 10</th>' +
+            '<th>Extensión Universitaria (D) máx: 2</th>' +
+            '<th>Pasantías Supervizadas (E) máx: 10<br><span class="requisito-obligatorio">(Obligatorio)</span></th>' +
+            '<th>Otros (F) máx: 4</th>' +
+            '<th>Total Créditos<br><span class="requisito-obligatorio">(Meta: 20)</span></th>' +
+          '</tr>' +
+        '</thead>' +
+        '<tbody>' +
+          datosPagina.map(construirFila).join('') +
+        '</tbody>' +
+      '</table>' +
+    '</div>' +
+    '<div class="text-center mt-3">' +
+      renderPaginacion(totalPages) +
+    '</div>' +
+  '</div>';
+}
+
+/**
+ * Construye una fila para la vista simplificada
+ */
+function construirFilaSimplificada(estudiante) {
+  var nombre = limpiarHTML(estudiante.nombreAlumno || 'N/A');
+  var matricula = limpiarHTML(estudiante.matricula || 'N/A');
+  var totalCreditos = estudiante.cantidadCreditoAlumnoTotal || 0;
+  
+  // Suficiencia en inglés
+  var suficienciaTexto = 'No especificado';
+  var suficienciaClass = 'bg-secondary';
+  
+  if (estudiante.AprobacionSI) {
+    var aprobacion = String(estudiante.AprobacionSI).toLowerCase();
+    if (aprobacion.includes('sí') || aprobacion.includes('si') || aprobacion === 'aprobado') {
+      suficienciaTexto = 'Aprobado';
+      suficienciaClass = 'bg-success';
+    } else if (aprobacion.includes('no') || aprobacion === 'no aprobado') {
+      suficienciaTexto = 'No Aprobado';
+      suficienciaClass = 'bg-danger';
+    }
+  }
+  
+  // Total de créditos con estilo
+  var creditosClass = totalCreditos >= 20 ? 'bg-success' : 'bg-warning';
+  var creditosTexto = totalCreditos >= 20 ? 'Completo' : 'Incompleto';
+  
+  return '<tr>' +
+    '<td><strong>' + nombre + '</strong></td>' +
+    '<td>' + matricula + '</td>' +
+    '<td><span class="badge ' + suficienciaClass + '">' + suficienciaTexto + '</span></td>' +
+    '<td>' +
+      '<span class="badge ' + creditosClass + ' fs-6">' + totalCreditos + '/20</span> ' +
+      '<small class="text-muted">(' + creditosTexto + ')</small>' +
+    '</td>' +
+  '</tr>';
+}
+
+/**
+ * Renderiza los botones de paginación
+ */
+function renderPaginacion(totalPages) {
+  var botones = '';
+  for (var i = 1; i <= totalPages; i++) {
+    botones += '<button class="pagination-btn ' + (i === currentPage ? 'active' : '') + '" onclick="irAPagina(' + i + ')">' + i + '</button>';
+  }
+  return botones;
+}
+
+/**
+ * Navega a una página específica
+ */
+function irAPagina(pagina) {
+  currentPage = pagina;
+  renderTablaPaginada();
+}
+
+/**
+ * Guarda una búsqueda en el historial
+ */
+function guardarEnHistorial(tipo, valor) {
+  if (!valor || !tipo) return;
+  
+  var clave = "historial-" + tipo;
+  var historial = JSON.parse(localStorage.getItem(clave)) || [];
+  var MAX_HISTORIAL_ITEMS = CONFIG.MAX_HISTORIAL_ITEMS;
+  
+  // Eliminar si ya existe
+  historial = historial.filter(function(item) {
+    return item !== valor;
+  });
+  
+  // Agregar al inicio
+  historial.unshift(valor);
+  
+  // Mantener solo los últimos elementos
+  historial = historial.slice(0, MAX_HISTORIAL_ITEMS);
+  
+  localStorage.setItem(clave, JSON.stringify(historial));
+  mostrarHistorial();
+}
+
+/**
+ * Muestra el historial de búsquedas
+ */
+function mostrarHistorial() {
+  var historialDiv = document.getElementById("historialLista");
+  if (!historialDiv) return;
+
+  historialDiv.innerHTML = '';
+  
+  var matriculas = JSON.parse(localStorage.getItem("historial-matricula")) || [];
+  var apellidos = JSON.parse(localStorage.getItem("historial-apellido")) || [];
+  var MAX_HISTORIAL_ITEMS = CONFIG.MAX_HISTORIAL_ITEMS;
+  
+  var matriculasConTipo = matriculas.map(function(m) {
+    return { tipo: 'matricula', valor: m };
+  });
+  var apellidosConTipo = apellidos.map(function(a) {
+    return { tipo: 'apellido', valor: a };
+  });
+  var todos = matriculasConTipo.concat(apellidosConTipo);
+
+  todos.slice(0, MAX_HISTORIAL_ITEMS).forEach(function(item) {
+    var li = document.createElement('li');
+    li.className = 'list-group-item list-group-item-action';
+    li.textContent = item.valor + ' (' + item.tipo + ')';
+    li.style.cursor = 'pointer';
+    li.onclick = function() {
+      if (item.tipo === 'matricula') {
+        document.getElementById("matricula").value = item.valor;
+        document.getElementById("apellido").value = '';
+      } else {
+        document.getElementById("apellido").value = item.valor;
+        document.getElementById("matricula").value = '';
+      }
+      buscarCreditos();
+    };
+    historialDiv.appendChild(li);
+  });
+}
+
+/**
+ * Muestra/oculta detalles de categorías
+ */
+function toggleDetails(detailsId) {
+  var detailsElement = document.getElementById(detailsId);
+  var button = event.target;
+  
+  if (!detailsElement || !button) return;
+  
+  if (detailsElement.classList.contains('show')) {
+    detailsElement.classList.remove('show');
+    button.textContent = 'Ver más detalles';
+    button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+  } else {
+    detailsElement.classList.add('show');
+    button.textContent = 'Ocultar detalles';
+    button.style.background = 'linear-gradient(135deg, #dc3545 0%, #fd7e14 100%)';
+  }
+}
+
+/**
+ * Exporta los resultados a un archivo PDF
+ * @param {string} nombreAlumno - Nombre del alumno para incluir en el título del PDF
+ */
+function exportarAPDF(nombreAlumno) {
+  // Mostrar indicador de carga durante la generación del PDF
+  var resultadoDiv = document.getElementById("resultado");
+  var resultadosContainer = document.getElementById("resultados-container");
+  var loadingOverlay = document.createElement("div");
+  loadingOverlay.className = "pdf-loading-overlay";
+  loadingOverlay.innerHTML = 
+    '<div class="pdf-loading-content">' +
+      '<div class="spinner"></div>' +
+      '<p>Generando PDF, por favor espere...</p>' +
+    '</div>';
+  resultadoDiv.appendChild(loadingOverlay);
+  
+  try {
+    // Importamos jsPDF desde el objeto global
+    var { jsPDF } = window.jspdf;
+
+    setTimeout(function() {
+      // Creamos una instancia de jsPDF en formato vertical
+      var doc = new jsPDF('portrait', 'mm', 'a4');
+      
+      // Obtenemos el ancho central de la página
+      var pageWidth = doc.internal.pageSize.getWidth();
+      var centerX = pageWidth / 2;
+      
+      // Agregamos un título al PDF
+      doc.setFontSize(18);
+      doc.text("Créditos Académicos DEI", centerX, 15, { align: 'center' });
+      
+      // Agregamos el nombre del alumno
+      doc.setFontSize(14);
+      doc.text("Informe de: " + nombreAlumno, centerX, 25, { align: 'center' });
+      
+      // Agregamos la fecha
+      var fecha = new Date().toLocaleDateString('es-ES');
+      doc.setFontSize(10);
+      doc.text("Fecha de generación: " + fecha, centerX, 32, { align: 'center' });
+      
+      // Obtenemos el elemento a capturar
+      var isMobile = window.innerWidth <= 768;
+      var elementoACapturar;
+      
+      if (isMobile) {
+        // En móvil, capturar las tarjetas
+        elementoACapturar = document.querySelector('.mobile-card-container');
+        if (!elementoACapturar) {
+          // Fallback a la tabla si no hay tarjetas
+          elementoACapturar = document.getElementById('tabla-resultados');
+        }
+      } else {
+        // En desktop, capturar la tabla
+        elementoACapturar = document.getElementById('tabla-resultados');
+      }
+      
+      if (!elementoACapturar) {
+        alert("No se pudo encontrar el contenido para exportar.");
+        resultadoDiv.removeChild(loadingOverlay);
+        return;
+      }
+      
+      // SOLUCIÓN PARA DISPOSITIVOS MÓVILES: 
+      // 1. Guardar el estilo original
+      var estiloOriginal = elementoACapturar.style.cssText;
+      
+      // 2. Forzar ancho completo temporalmente durante la captura
+      elementoACapturar.style.width = "100%";
+      elementoACapturar.style.maxWidth = "none";
+      elementoACapturar.style.overflow = "visible";
+      
+      // 3. Si es un dispositivo móvil, ajustar el tamaño para mejor captura
+      if (isMobile) {
+        // Agregar estilos temporales para la captura en móvil
+        elementoACapturar.style.transform = "scale(1)";
+        elementoACapturar.style.transformOrigin = "top left";
+      }
+      
+      // Utilizamos html2canvas con opciones mejoradas
+      html2canvas(elementoACapturar, {
+        scale: isMobile ? 1.5 : 2, // Mayor escala para dispositivos móviles
+        useCORS: true,
+        logging: false,
+        allowTaint: true,
+        scrollX: 0,
+        scrollY: 0,
+        width: elementoACapturar.scrollWidth, // Captura todo el ancho
+        height: elementoACapturar.scrollHeight, // Captura toda la altura
+        windowWidth: document.documentElement.offsetWidth,
+        windowHeight: document.documentElement.offsetHeight
+      }).then(function(canvas) {
+        // Restaurar los estilos originales
+        elementoACapturar.style.cssText = estiloOriginal;
+        
+        var imgData = canvas.toDataURL('image/png');
+        
+        // Calculamos el ancho y alto para mantener la relación de aspecto
+        var pageWidth = doc.internal.pageSize.getWidth();
+        var pageHeight = doc.internal.pageSize.getHeight();
+        var imgWidth = pageWidth - 20; // Margen de 10mm en cada lado
+        var imgHeight = canvas.height * imgWidth / canvas.width;
+        
+        // En formato vertical, es más probable que la imagen sea demasiado alta
+        // Ajustamos para que quepa con más margen para los textos
+        var margenSuperior = 40; // Espacio para título y datos (en mm)
+        var margenInferior = 15; // Espacio para pie de página (en mm)
+        var espacioDisponible = pageHeight - margenSuperior - margenInferior;
+        
+        if (imgHeight > espacioDisponible) {
+          imgHeight = espacioDisponible;
+          imgWidth = canvas.width * imgHeight / canvas.height;
+          
+          // Centramos horizontalmente si la imagen es más angosta que la página
+          var margenLateral = (pageWidth - imgWidth) / 2;
+        } else {
+          var margenLateral = 10; // Margen predeterminado
+        }
+        
+        // Agregamos la imagen al PDF centrada horizontalmente
+        doc.addImage(imgData, 'PNG', margenLateral, margenSuperior, imgWidth, imgHeight);
+        
+        // Agregamos pie de página
+        doc.setFontSize(8);
+        var centerX = pageWidth / 2;
+        doc.text("Universidad Católica \"Nuestra Señora de la Asunción\" - DEI - By OI", centerX, pageHeight - 10, { align: 'center' });
+        
+        // Guardamos el PDF
+        doc.save("Creditos_" + nombreAlumno.replace(/\s+/g, '_') + ".pdf");
+        
+        // Quitamos el indicador de carga
+        resultadoDiv.removeChild(loadingOverlay);
+      });
+    }, 500);
+  } catch (error) {
+    console.error("Error al generar el PDF:", error);
+    alert("Ha ocurrido un error al generar el PDF. Por favor, intenta nuevamente.");
+    resultadoDiv.removeChild(loadingOverlay);
+  }
+}
+
+/**
+ * Construye una tarjeta móvil para la vista simplificada
+ */
+function construirTarjetaMovil(estudiante) {
+  var nombre = limpiarHTML(estudiante.nombreAlumno || 'Estudiante');
+  var carrera = limpiarHTML(estudiante.carrera || 'IF');
+  var matricula = limpiarHTML(estudiante.matricula || 'N/A');
+  var totalCreditos = estudiante.cantidadCreditoAlumnoTotal || 0;
+  
+  // Iniciales para el avatar
+  var iniciales = nombre.split(' ').map(function(n) { return n.charAt(0); }).join('').substring(0, 2).toUpperCase();
+  
+  // Suficiencia en inglés
+  var aprobado = false;
+  if (estudiante.AprobacionSI) {
+    var valor = String(estudiante.AprobacionSI).toLowerCase();
+    aprobado = valor === 'sí' || valor === 'si' || valor === 'yes' || valor === 'true' || valor === '1' || valor === 'aprobado';
+  }
+  
+  var suficienciaClass = aprobado ? 'approved' : 'incomplete';
+  var suficienciaTexto = aprobado ? 'APROBADO ✅' : 'NO APROBADO ❌';
+  
+  // Créditos
+  var creditosCompletos = totalCreditos >= 20;
+  var creditosClass = creditosCompletos ? 'approved' : 'incomplete';
+  var creditosTexto = totalCreditos + '/20';
+  var creditosSubtexto = creditosCompletos ? 'Completo' : 'Faltan ' + (20 - totalCreditos);
+  
+  // Enlace de detalles
+  var enlace = typeof estudiante.enlaceAlumno === 'string' ? estudiante.enlaceAlumno.trim() : '';
+  var enlaceValido = esURLValida(enlace);
+  var detalleHtml = enlaceValido ? 
+    '<a href="' + enlace + '" target="_blank" class="mobile-detail-btn primary">Ver Detalles</a>' :
+    '<span class="mobile-detail-btn disabled">Sin detalles</span>';
+  
+  return '<div class="mobile-student-card">' +
+    '<div class="mobile-card-header">' +
+      '<div class="mobile-student-avatar">' + iniciales + '</div>' +
+      '<div class="mobile-student-info">' +
+        '<h6>' + nombre + '</h6>' +
+        '<div class="text-muted">' + carrera + ' • ' + matricula + '</div>' +
+      '</div>' +
+    '</div>' +
+    
+    '<div class="mobile-status-row">' +
+      '<div class="mobile-status-item ' + suficienciaClass + '">' +
+        '<div class="mobile-status-label">🇬🇧 Inglés</div>' +
+        '<div class="mobile-status-value ' + suficienciaClass + '">' + suficienciaTexto + '</div>' +
+      '</div>' +
+      '<div class="mobile-status-item ' + creditosClass + '">' +
+        '<div class="mobile-status-label">📊 Créditos</div>' +
+        '<div class="mobile-status-value ' + creditosClass + '">' + creditosTexto + '</div>' +
+      '</div>' +
+    '</div>' +
+    
+    '<div class="mobile-total-credits ' + (creditosCompletos ? 'complete' : '') + '">' +
+      '<div class="mobile-total-label">Total de Créditos</div>' +
+      '<div class="mobile-total-value">' + creditosTexto + '</div>' +
+      '<div style="font-size: 12px; opacity: 0.9;">' + creditosSubtexto + '</div>' +
+    '</div>' +
+    
+    '<div class="mobile-card-actions">' +
+      detalleHtml +
+    '</div>' +
+  '</div>';
+}
+
+/**
+ * Construye una tarjeta móvil para la vista completa con todos los detalles
+ */
+function construirTarjetaMovilCompleta(estudiante) {
+  var nombre = limpiarHTML(estudiante.nombreAlumno || 'Estudiante');
+  var carrera = limpiarHTML(estudiante.carrera || 'IF');
+  var matricula = limpiarHTML(estudiante.matricula || 'N/A');
+  var totalCreditos = estudiante.cantidadCreditoAlumnoTotal || 0;
+  
+  // Iniciales para el avatar
+  var iniciales = nombre.split(' ').map(function(n) { return n.charAt(0); }).join('').substring(0, 2).toUpperCase();
+  
+  // Suficiencia en inglés
+  var aprobado = false;
+  if (estudiante.AprobacionSI) {
+    var valor = String(estudiante.AprobacionSI).toLowerCase();
+    aprobado = valor === 'sí' || valor === 'si' || valor === 'yes' || valor === 'true' || valor === '1' || valor === 'aprobado';
+  }
+  
+  var suficienciaClass = aprobado ? 'approved' : 'incomplete';
+  var suficienciaTexto = aprobado ? 'APROBADO ✅' : 'NO APROBADO ❌';
+  
+  // Función helper para crear barras de progreso móviles
+  function crearBarraMovil(actual, maximo, label) {
+    var porcentaje = Math.min((actual / maximo) * 100, 100);
+    var progressClass = porcentaje === 100 ? 'complete' : porcentaje >= 50 ? 'partial' : 'incomplete';
+    
+    return '<div class="mobile-credit-item">' +
+      '<div class="mobile-credit-label">' + label + '</div>' +
+      '<div class="mobile-credit-value">' + actual + '/' + maximo + '</div>' +
+      '<div class="mobile-progress-bar">' +
+        '<div class="mobile-progress-fill ' + progressClass + '" style="width: ' + porcentaje + '%;"></div>' +
+      '</div>' +
+    '</div>';
+  }
+  
+  // Créditos
+  var creditosCompletos = totalCreditos >= 20;
+  var creditosClass = creditosCompletos ? 'approved' : 'incomplete';
+  var creditosTexto = totalCreditos + '/20';
+  var creditosSubtexto = creditosCompletos ? 'Completo' : 'Faltan ' + (20 - totalCreditos);
+  
+  // Enlace de detalles
+  var enlace = typeof estudiante.enlaceAlumno === 'string' ? estudiante.enlaceAlumno.trim() : '';
+  var enlaceValido = esURLValida(enlace);
+  var detalleHtml = enlaceValido ? 
+    '<a href="' + enlace + '" target="_blank" class="mobile-detail-btn primary">Ver Detalles</a>' :
+    '<span class="mobile-detail-btn disabled">Sin detalles</span>';
+  
+  return '<div class="mobile-student-card">' +
+    '<div class="mobile-card-header">' +
+      '<div class="mobile-student-avatar">' + iniciales + '</div>' +
+      '<div class="mobile-student-info">' +
+        '<h6>' + nombre + '</h6>' +
+        '<div class="text-muted">' + carrera + ' • ' + matricula + '</div>' +
+      '</div>' +
+    '</div>' +
+    
+    '<div class="mobile-status-row">' +
+      '<div class="mobile-status-item ' + suficienciaClass + '">' +
+        '<div class="mobile-status-label">🇬🇧 Inglés</div>' +
+        '<div class="mobile-status-value ' + suficienciaClass + '">' + suficienciaTexto + '</div>' +
+      '</div>' +
+      '<div class="mobile-status-item ' + creditosClass + '">' +
+        '<div class="mobile-status-label">📊 Total</div>' +
+        '<div class="mobile-status-value ' + creditosClass + '">' + creditosTexto + '</div>' +
+      '</div>' +
+    '</div>' +
+    
+    '<div class="mobile-credits-grid">' +
+      crearBarraMovil(estudiante.MateriasCursos || 0, 12, '📘 Cursos (A)') +
+      crearBarraMovil(estudiante.Congresos || 0, 4, '🎓 Congresos (B)') +
+      crearBarraMovil(estudiante.AyudantiasPasantias || 0, 10, '🧑‍🏫 Ayudantías (C)') +
+      crearBarraMovil(estudiante.Investigacion || 0, 2, '🤝 Extensión (D)') +
+      crearBarraMovil(estudiante.Extension || 0, 10, '🛠️ Pasantías (E)') +
+      crearBarraMovil(estudiante.Otros || 0, 4, '📚 Otros (F)') +
+    '</div>' +
+    
+    '<div class="mobile-total-credits ' + (creditosCompletos ? 'complete' : '') + '">' +
+      '<div class="mobile-total-label">Total de Créditos</div>' +
+      '<div class="mobile-total-value">' + creditosTexto + '</div>' +
+      '<div style="font-size: 12px; opacity: 0.9;">' + creditosSubtexto + '</div>' +
+    '</div>' +
+    
+    '<div class="mobile-card-actions">' +
+      detalleHtml +
+    '</div>' +
+  '</div>';
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', inicializarApp);
+</script>
