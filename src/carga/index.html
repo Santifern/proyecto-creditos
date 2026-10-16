@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <?!= include('styles'); ?>
+    <?!= estilosTema(); ?>
+</head>
+<body>
+<div class="main-container">
+  <div class="content-wrapper">
+    <div class="content-wrapper card mb-3">
+      <img class="card-img-top mx-auto" src="<?= CONFIG.direccion.imagenCabecera ?>" alt="Encabezado <?= CONFIG.direccion.sigla ?>" style="max-width: 100%; height: auto;">
+      <? if (CONFIG.direccion.lema) { ?>
+      <div class="card-body text-center">
+        <small class="text-muted"><?= CONFIG.direccion.lema ?></small>
+      </div>
+      <? } ?>
+    </div>
+
+    <div style="text-align: center; margin-bottom: var(--spacing-xl);">
+      <h2 style="color: var(--primary-color); font-weight: 700; margin: 0; font-size: 28px;">
+        🔎 Módulo de Carga de Créditos
+      </h2>
+      <p style="color: var(--text-secondary); margin-top: var(--spacing-xs); font-size: 16px;">
+        Sistema de gestión académica de créditos
+      </p>
+    </div>
+
+    <div class="search-form">
+      <!-- Matrícula -->
+      <div class="form-group">
+        <label for="matricula" class="form-label">Matrícula del Estudiante</label>
+        <div style="position: relative;">
+          <input type="text" class="form-control" id="matricula" placeholder="Ingrese la matrícula (ej: Y08376)" autocomplete="off">
+          <div id="suggestions"></div>
+        </div>
+        <small id="matriculaError" class="text-danger d-none">La matrícula debe ser alfanumérica (sin espacios ni símbolos).</small>
+        <div id="selectedName"></div>
+      </div>
+
+      <!-- Categoría y créditos -->
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label" for="categoria">Categoría de Crédito</label>
+          <select id="categoria" class="form-control" required>
+            <option value="">Seleccione una Categoría</option>
+            <? Object.keys(CONFIG.esquema.categorias).forEach(function (codigo) { ?>
+            <option value="<?= codigo ?>"><?= codigo ?> - <?= CONFIG.esquema.categorias[codigo].nombreCorto || CONFIG.esquema.categorias[codigo].nombre ?></option>
+            <? }); ?>
+            <? Object.keys(CONFIG.esquema.especiales || {}).forEach(function (codigo) {
+                 var especial = CONFIG.esquema.especiales[codigo];
+                 if (especial.habilitada === false) return; ?>
+            <option value="<?= codigo ?>"><?= codigo ?> - <?= especial.nombreEnFormulario || especial.nombre ?></option>
+            <? }); ?>
+          </select>
+        </div>
+        <div class="form-col form-col-fixed">
+          <label class="form-label" for="creditos">Créditos</label>
+          <input class="form-control"
+                 type="number"
+                 id="creditos"
+                 min="<?= CONFIG.esquema.pasoCreditos ?>"
+                 max="<?= CONFIG.esquema.totalRequerido ?>"
+                 step="<?= CONFIG.esquema.pasoCreditos ?>"
+                 placeholder="1.5"
+                 list="creditValues"
+                 required>
+          <datalist id="creditValues">
+            <option value="0.5">
+            <option value="1">
+            <option value="1.5">
+            <option value="2">
+            <option value="2.5">
+            <option value="3">
+            <option value="4">
+            <option value="5">
+            <option value="6">
+            <option value="8">
+            <option value="10">
+            <option value="12">
+            <option value="15">
+            <option value="20">
+          </datalist>
+          <small class="form-text text-muted">Solo valores en <?= CONFIG.esquema.pasoCreditos ?> incrementos (ej: 1, 1.5, 2)</small>
+        </div>
+      </div>
+
+      <!-- Archivo y envío -->
+      <div class="form-group">
+        <div class="file-upload-section">
+          <div class="file-col">
+            <label class="form-label" for="pdfFile">Certificado (PDF)</label>
+            <input class="form-control" type="file" id="pdfFile" accept=".pdf" required>
+          </div>
+          <div class="button-col">
+            <button id="btnSubmit" class="btn-primary" type="button">
+              Cargar y Asignar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="mensaje"></div>
+    </div>
+  </div>
+</div>
+
+    <!-- Loader -->
+    <div id="loaderOverlay" class="loader-overlay">
+      <div class="loader-box">
+        <div class="loader-title">Subiendo archivo <span id="loaderPercentText" class="loader-percent">0%</span></div>
+        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        <div id="loaderSub" class="loader-sub">Preparando subida...</div>
+      </div>
+    </div>
+
+<footer style="text-align: center; margin-top: var(--spacing-xl); padding-top: var(--spacing-lg); border-top: 1px solid var(--border-color); font-size: 14px; color: var(--text-secondary);">
+  <? if (CONFIG.direccion.desarrollador && CONFIG.direccion.desarrollador.nombre) { ?>
+  <div style="font-weight: 500;">Desarrollado por <?= CONFIG.direccion.desarrollador.nombre ?></div>
+  <? } ?>
+  <div style="font-size: 12px; margin-top: 4px; opacity: 0.7;"><?= CONFIG.direccion.universidad ?> - <?= CONFIG.direccion.sigla ?></div>
+</footer>
+
+<script>
+  // Configuración pública de la instancia (generada desde instancias/<DIR>/config.json).
+  const APP = <?!= configPublicaJSON() ?>;
+  const ESPECIALES = Object.keys(APP.esquema.especiales || {});
+
+  function escaparHTML(valor) {
+    return String(valor == null ? '' : valor)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function esEspecial(categoria) {
+    return ESPECIALES.indexOf(categoria) !== -1;
+  }
+
+  function limiteDe(categoria) {
+    const def = APP.esquema.categorias[categoria];
+    return def ? def.limite : APP.esquema.totalRequerido;
+  }
+
+  const elementos = {
+    matricula: document.getElementById('matricula'),
+    categoria: document.getElementById('categoria'),
+    creditos: document.getElementById('creditos'),
+    archivo: document.getElementById('pdfFile'),
+    mensaje: document.getElementById('mensaje'),
+    boton: document.getElementById('btnSubmit'),
+    sugerencias: document.getElementById('suggestions'),
+    seleccionado: document.getElementById('selectedName'),
+    matriculaError: document.getElementById('matriculaError'),
+    overlay: document.getElementById('loaderOverlay'),
+    progreso: document.getElementById('progressFill'),
+    porcentaje: document.getElementById('loaderPercentText'),
+    subtitulo: document.getElementById('loaderSub')
+  };
+
+  function mostrarProgreso(pct, texto) {
+    elementos.overlay.style.display = 'flex';
+    elementos.progreso.style.width = `${pct}%`;
+    elementos.porcentaje.innerText = `${pct}%`;
+    if (texto) elementos.subtitulo.innerText = texto;
+  }
+
+  function procesarCarga() {
+    const matricula = elementos.matricula.value.trim();
+    const categoria = elementos.categoria.value;
+    const creditos = elementos.creditos.value;
+    const necesitaCreditos = !esEspecial(categoria);
+
+    if (!matricula || !categoria || (necesitaCreditos && !creditos) || elementos.archivo.files.length === 0) {
+      mostrarMensaje('error', 'Por favor, complete todos los campos y adjunte un archivo.');
+      return;
+    }
+    if (necesitaCreditos && !elementos.creditos.checkValidity()) {
+      mostrarMensaje('error', elementos.creditos.validationMessage);
+      return;
+    }
+
+    mostrarMensaje('info', 'Procesando... no cierre esta ventana.');
+    elementos.boton.disabled = true;
+
+    const file = elementos.archivo.files[0];
+    const reader = new FileReader();
+    reader.onprogress = function (pe) {
+      if (pe.lengthComputable) mostrarProgreso(Math.round((pe.loaded / pe.total) * 40), 'Leyendo archivo...');
+    };
+    reader.onload = function (e) {
+      // e.target.result tiene la forma 'data:application/pdf;base64,AAAA...'
+      let base64 = e.target.result;
+      const idx = base64.indexOf(';base64,');
+      if (idx > -1) base64 = base64.substring(idx + ';base64,'.length);
+
+      mostrarProgreso(0, 'Iniciando...');
+      // Progreso simulado hasta que responde el servidor.
+      let simulado = 0;
+      const intervalo = setInterval(() => {
+        simulado = Math.min(simulado + Math.random() * 8, 95);
+        mostrarProgreso(Math.round(simulado), 'Subiendo...');
+      }, 300);
+
+      const terminar = (exito) => {
+        clearInterval(intervalo);
+        if (exito) mostrarProgreso(100, 'Completado');
+        else { elementos.subtitulo.innerText = 'Error en la subida'; elementos.porcentaje.innerText = '0%'; }
+        setTimeout(() => { elementos.overlay.style.display = 'none'; }, exito ? 700 : 1200);
+        elementos.boton.disabled = false;
+      };
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          terminar(res && res.ok);
+          if (res && res.ok) manejarExito(res.data);
+          else mostrarMensaje('error', '⚠ ERROR: ' + (res ? res.error : 'Respuesta vacía del servidor'));
+        })
+        .withFailureHandler(function (err) {
+          terminar(false);
+          mostrarMensaje('error', '⚠ ERROR: ' + err.message);
+        })
+        .procesarDatos({
+          matricula: matricula,
+          categoria: categoria,
+          creditos: creditos,
+          fileName: file.name,
+          mimeType: file.type,
+          fileData: base64
+        });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // --- Autocompletado ---
+  let alumnos = [];
+
+  function initAutocomplete() {
+    google.script.run.withSuccessHandler(function (res) {
+      if (res && res.ok) alumnos = res.data || [];
+      else console.warn('No se pudo cargar la lista de alumnos:', res && res.error);
+    }).getAllStudents();
+
+    const input = elementos.matricula;
+    const box = elementos.sugerencias;
+    input.addEventListener('input', function () {
+      const q = input.value.trim();
+      box.innerHTML = '';
+      if (!q) { elementos.seleccionado.innerText = ''; elementos.seleccionado.classList.remove('selected-large'); }
+      if (q.length < 2) { box.style.display = 'none'; return; }
+      const qNorm = q.replace(/^0+/, '').toUpperCase();
+      const coincidencias = alumnos.filter(a => a.matricula.replace(/^0+/, '').toUpperCase().indexOf(qNorm) === 0 || a.matricula.indexOf(q) === 0);
+      if (coincidencias.length === 0) { box.style.display = 'none'; return; }
+
+      const lista = document.createElement('div');
+      lista.className = 'suggestions-list';
+      coincidencias.slice(0, 30).forEach(alumno => {
+        const fila = document.createElement('div');
+        fila.className = 'suggestion-item';
+        fila.innerHTML = `<div><strong>${escaparHTML(alumno.matricula)}</strong> — ${escaparHTML(alumno.nombre)}</div><div class="meta">${escaparHTML(alumno.carrera)}</div>`;
+        fila.onclick = function () {
+          input.value = alumno.matricula;
+          elementos.seleccionado.innerText = alumno.nombre || '';
+          elementos.seleccionado.classList.add('selected-large');
+          box.innerHTML = '';
+          box.style.display = 'none';
+        };
+        lista.appendChild(fila);
+      });
+      box.appendChild(lista);
+      box.style.display = 'block';
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!box.contains(e.target) && e.target !== input) box.style.display = 'none';
+    });
+
+    input.addEventListener('blur', function () {
+      const v = input.value.trim();
+      if (v && !/^[a-zA-Z0-9]+$/.test(v)) {
+        elementos.matriculaError.classList.remove('d-none');
+        elementos.seleccionado.classList.remove('selected-large');
+      } else {
+        elementos.matriculaError.classList.add('d-none');
+      }
+    });
+  }
+
+  function validarCampoCreditos() {
+    const campo = elementos.creditos;
+    const valor = parseFloat(campo.value);
+    const limite = limiteDe(elementos.categoria.value);
+    const paso = APP.esquema.pasoCreditos;
+
+    if (campo.value === '') {
+      campo.setCustomValidity('');
+    } else if (isNaN(valor)) {
+      campo.setCustomValidity('Ingrese un número válido');
+    } else if (Math.abs(valor / paso - Math.round(valor / paso)) > 1e-9) {
+      campo.setCustomValidity(`Los créditos deben ser múltiplos de ${paso}`);
+    } else if (valor < paso) {
+      campo.setCustomValidity(`Los créditos deben ser al menos ${paso}`);
+    } else {
+      // Superar el límite no es un error: el servidor asigna hasta el límite y lo informa.
+      campo.setCustomValidity('');
+    }
+  }
+
+  function alCambiarCategoria() {
+    const val = elementos.categoria.value;
+    const campo = elementos.creditos;
+    const aviso = document.getElementById('creditWarning') || crearAvisoCreditos();
+
+    if (esEspecial(val)) {
+      campo.value = '';
+      campo.disabled = true;
+      campo.placeholder = 'No aplica para esta categoría';
+      campo.required = false;
+      aviso.style.display = 'none';
+    } else {
+      campo.disabled = false;
+      campo.placeholder = '1.5';
+      campo.required = true;
+      const limite = limiteDe(val);
+      campo.max = limite;
+      const texto = elementos.categoria.options[elementos.categoria.selectedIndex].text;
+      aviso.innerHTML = `<small class="text-info">ℹ️ Límite para ${escaparHTML(texto)}: ${limite} créditos</small>`;
+      aviso.style.display = val ? 'block' : 'none';
+    }
+    validarCampoCreditos();
+  }
+
+  function crearAvisoCreditos() {
+    const aviso = document.createElement('div');
+    aviso.id = 'creditWarning';
+    aviso.style.marginTop = '4px';
+    elementos.creditos.parentNode.appendChild(aviso);
+    return aviso;
+  }
+
+  function mostrarMensaje(tipo, texto) {
+    const estilos = {
+      exito: ['var(--success-color)', 'rgba(40, 167, 69, 0.1)', '1px solid rgba(40, 167, 69, 0.2)'],
+      error: ['var(--danger-color)', 'rgba(220, 53, 69, 0.1)', '1px solid rgba(220, 53, 69, 0.2)'],
+      info: ['blue', '', '']
+    }[tipo];
+    elementos.mensaje.style.color = estilos[0];
+    elementos.mensaje.style.backgroundColor = estilos[1];
+    elementos.mensaje.style.border = estilos[2];
+    elementos.mensaje.innerText = texto;
+  }
+
+  function manejarExito(data) {
+    mostrarMensaje('exito', '✓ ' + data.mensaje + (data.advertencia ? ' ' + data.advertencia : ''));
+    elementos.matricula.value = '';
+    elementos.categoria.value = '';
+    elementos.creditos.value = '';
+    elementos.creditos.disabled = false;
+    elementos.creditos.required = true;
+    elementos.creditos.placeholder = '1.5';
+    elementos.archivo.value = '';
+    elementos.seleccionado.innerText = '';
+    elementos.seleccionado.classList.remove('selected-large');
+    const aviso = document.getElementById('creditWarning');
+    if (aviso) aviso.style.display = 'none';
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initAutocomplete();
+    elementos.creditos.addEventListener('input', validarCampoCreditos);
+    elementos.categoria.addEventListener('change', alCambiarCategoria);
+    elementos.boton.addEventListener('click', procesarCarga);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<script>
+/**
+ * Constantes de interfaz de Consulta (iguales para todas las instancias).
+ * Lo específico de cada dirección llega en APP (ver Page.html y
+ * instancias/<DIR>/config.json).
+ */
+const UI = {
+  RESULTS_PER_PAGE: APP.consulta.resultadosPorPagina,
+  MIN_APELLIDO_LENGTH: APP.consulta.minLongitudApellido,
+  LOADER_MESSAGE_INTERVAL: 1200,
+  LOADER_FADE_DURATION: 300,
+  MAX_HISTORIAL_ITEMS: 3,
+  MOBILE_BREAKPOINT: 768,
+  LOADING_MESSAGES: [
+    "🔍 Buscando en la base de datos...",
+    "📊 Procesando información académica...",
+    `🧠 Analizando créditos del ${APP.direccion.sigla}...`,
+    "📋 Consultando registros estudiantiles...",
+    "✨ Organizando los resultados...",
+    "📡 Sincronizando con el servidor...",
+    "🔐 Verificando permisos de acceso...",
+    "⚡ Casi listo, últimos detalles..."
+  ]
+};
+</script>

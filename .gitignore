@@ -1,0 +1,9 @@
+# Generado por tools/build.js
+dist/
+
+# IDs de proyectos Apps Script de cada instancia (no versionar)
+instancias/*/.clasp-*.json
+.clasprc.json
+
+node_modules/
+*.log

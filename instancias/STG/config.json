@@ -1,0 +1,268 @@
+{
+  "direccion": {
+    "sigla": "STG",
+    "nombre": "STG - Staging de pruebas (no producción)",
+    "universidad": "Universidad Católica \"Nuestra Señora de la Asunción\"",
+    "emailContacto": "stg@example.com",
+    "desarrollador": {
+      "nombre": "",
+      "email": ""
+    },
+    "urlSitio": "",
+    "imagenCabecera": "https://i.imgur.com/A5gWkLy.jpg",
+    "favicon": "https://uc.edu.py/favicon.ico",
+    "lema": "Filipenses 4:13 - \"Todo lo puedo en Cristo que me fortalece\"",
+    "carreraPorDefecto": "IF"
+  },
+  "tema": {
+    "colorPrimario": "#B45309",
+    "colorPrimarioHover": "#92400E"
+  },
+  "infra": {
+    "spreadsheetId": "",
+    "nombreHoja": "CREDITOS_ACADEMICOS",
+    "nombreHojaAuditoria": "AUDITORIA",
+    "parentFolderId": "",
+    "timeZone": "America/Asuncion"
+  },
+  "hoja": {
+    "filaInicioDatos": 5
+  },
+  "webapp": {
+    "cargaAccess": "MYSELF",
+    "consultaAccess": "MYSELF"
+  },
+  "consulta": {
+    "resultadosPorPagina": 5,
+    "minLongitudApellido": 3,
+    "maxBusquedasPorMinuto": 60
+  },
+  "esquema": {
+    "revisado": true,
+    "totalRequerido": 20,
+    "pasoCreditos": 0.5,
+    "categorias": {
+      "A": {
+        "nombre": "Cursos Optativos",
+        "nombreCorto": "Cursos",
+        "icono": "📘",
+        "limite": 12,
+        "codigoArchivo": "C",
+        "descripcion": "Asignaturas cursadas en carreras afines de la misma Facultad, otras facultades de la Universidad o universidades nacionales o extranjeras.",
+        "detalles": [
+          {
+            "titulo": "📋 Requisitos y Especificaciones:",
+            "items": [
+              "Asignaturas de <strong>carreras afines</strong> de la misma Facultad",
+              "Materias de <strong>otras facultades</strong> de la Universidad Católica",
+              "Cursos de <strong>universidades nacionales o extranjeras</strong> reconocidas"
+            ]
+          },
+          {
+            "titulo": "📝 Actividades recomendadas:",
+            "items": [
+              "Asignaturas DEI: 1 crédito por cada 16 horas cátedras",
+              "Asignaturas DICIA: 1 crédito por cada 32 horas cátedras",
+              "Cursos Externos u online: 1 crédito por cada 48 horas reloj"
+            ]
+          }
+        ]
+      },
+      "B": {
+        "nombre": "Congresos, Seminarios y Conferencias",
+        "nombreCorto": "Congresos",
+        "icono": "🎓",
+        "limite": 4,
+        "codigoArchivo": "Co",
+        "descripcion": "Eventos académicos organizados por instituciones competentes que aporten a la formación del ingeniero/a con aprobación del DEI.",
+        "detalles": [
+          {
+            "titulo": "📋 Requisitos y Especificaciones:",
+            "items": [
+              "Eventos organizados por <strong>instituciones reconocidas</strong>",
+              "Temática relacionada con la <strong>ingeniería</strong> o áreas afines",
+              "Certificado de participación"
+            ]
+          },
+          {
+            "titulo": "📝 Actividades recomendadas:",
+            "items": [
+              "Tigo Campus Party: 1 crédito por asistencia",
+              "Congreso Innotec: 2 créditos por asistencia",
+              "Congreso Innotec: 3 créditos por Hackathon",
+              "JIT-CITA: 1 crédito por asistencia a las charlas",
+              "JIT-CITA: 1 crédito por asistencia a los tutoriales"
+            ]
+          }
+        ]
+      },
+      "C": {
+        "nombre": "Ayudantías de Cátedra",
+        "nombreCorto": "Ayudantías",
+        "icono": "🧑‍🏫",
+        "limite": 10,
+        "codigoArchivo": "AY",
+        "descripcion": "Apoyo a actividades docentes, principalmente en prácticas y laboratorios, bajo la supervisión del Departamento.",
+        "detalles": [
+          {
+            "titulo": "📋 Requisitos y Especificaciones:",
+            "items": [
+              "Supervisión del <strong>profesor titular</strong>",
+              "Mínimo <strong>16 horas cátedras</strong> de actividad por 1 crédito",
+              "Apoyo en prácticas, laboratorios o tutorías",
+              "Evaluación satisfactoria del desempeño"
+            ]
+          },
+          {
+            "titulo": "📝 Procedimiento:",
+            "items": [
+              "1- Se debe solicitar la ayudantía a través del formulario correspondiente habilitado cada semestre en el classroom.",
+              "2- Una vez aprobada la ayudantía, se debe coordinar con el profesor titular las actividades a realizar.",
+              "3- Una vez finalizada se debe elaborar un informe de actividades realizadas con las horas cátedra correspondientes firmada por el docente",
+              "4- Se debe solicitar la asignación de créditos con el formulario de solicitud de créditos."
+            ]
+          }
+        ]
+      },
+      "D": {
+        "nombre": "Extensión Universitaria",
+        "nombreCorto": "Extensión",
+        "icono": "🤝",
+        "limite": 2,
+        "codigoArchivo": "E",
+        "descripcion": "Actividades humanísticas, educativas o tecnológicas que fortalecen la identidad cristiana y aportan al desarrollo profesional.",
+        "detalles": [
+          {
+            "titulo": "📋 Requisitos y Especificaciones:",
+            "items": [
+              "Actividades de <strong>responsabilidad social</strong>",
+              "Proyectos de <strong>voluntariado</strong> educativo o tecnológico",
+              "Fortalecimiento de la <strong>identidad cristiana</strong>"
+            ]
+          },
+          {
+            "titulo": "📝 Actividades sugeridas:",
+            "items": [
+              "Un techo para mi país: 1 crédito por asistencia",
+              "Colecta de alimentos: 1 crédito",
+              "Voluntariado en Teletón: 1 crédito"
+            ]
+          }
+        ]
+      },
+      "E": {
+        "nombre": "Pasantías Supervisadas",
+        "nombreCorto": "Pasantías",
+        "icono": "🛠️",
+        "limite": 10,
+        "minimo": 7,
+        "obligatoria": true,
+        "codigoArchivo": "Ps",
+        "descripcion": "Prácticas profesionales, de investigación, de servicios, o en proyectos concretos, conforme a la legislación",
+        "detalles": [
+          {
+            "titulo": "📋 Requisitos y Especificaciones:",
+            "items": [
+              "Las Pasantías son obligatorias y requieren un mínimo de 7 créditos computados",
+              "Prácticas en <strong>empresas o instituciones</strong> reconocidas",
+              "Supervisión académica del <strong>DEI</strong>",
+              "Mínimo <strong>48 horas reloj</strong> por crédito",
+              "Actividades relacionadas con la carrera"
+            ]
+          },
+          {
+            "titulo": "📝 Documentación Requerida:",
+            "items": [
+              "Aprobación de Propuesta de Pasantías",
+              "Informe Final de actividades realizadas con la carga horaria correspondiente"
+            ]
+          }
+        ]
+      },
+      "F": {
+        "nombre": "Otras Actividades",
+        "nombreCorto": "Otros",
+        "icono": "📚",
+        "limite": 4,
+        "codigoArchivo": "Ot",
+        "descripcion": "Toda otra actividad validada por el Comité del DEI que contribuya a la formación integral del profesional.",
+        "detalles": [
+          {
+            "titulo": "📋 Requisitos y Especificaciones:",
+            "items": [
+              "Actividades <strong>no contempladas</strong> en otras categorías",
+              "Validación previa del <strong>Comité del DEI</strong>",
+              "Contribución a la <strong>formación integral</strong>",
+              "Evaluación caso por caso"
+            ]
+          },
+          {
+            "titulo": "📝 Ejemplos de Actividades:",
+            "items": [
+              "Cursos ECI en Buenos Aires: 2 créditos por cada curso aprobado y certificado."
+            ]
+          }
+        ]
+      }
+    },
+    "especiales": {
+      "SI": {
+        "habilitada": true,
+        "nombre": "Suficiencia en Inglés",
+        "icono": "🇬🇧",
+        "nombreEnFormulario": "Aprobación de Suficiencia Inglés",
+        "descripcion": "Requisito obligatorio. Se debe alcanzar al menos nivel B1 (Intermedio) según el Marco Común Europeo de Referencia (MCER).",
+        "detalles": [
+          {
+            "titulo": "📋 Requisitos y Especificaciones:",
+            "items": [
+              "<span class=\"highlight\">Nivel B1 mínimo</span> según MCER",
+              "Examen oficial reconocido internacionalmente",
+              "Certificación de institutos de idiomas acreditados",
+              "<strong>Requisito obligatorio</strong> para la graduación"
+            ]
+          },
+          {
+            "titulo": "📝 Opciones de Certificación:",
+            "items": [
+              "CCPA online con Versant Test",
+              "Duolingo Test online",
+              "Certificado del Anglo",
+              "Otras instituciones que cumplan con los requisitos del MCER"
+            ]
+          },
+          {
+            "titulo": "💡 Recomendaciones:",
+            "items": [
+              "Obtener la suficiencia en Inglés en los primeros semestres",
+              "Considerar que es obligatorio y Requisito para la presentación de Tema de PFC"
+            ]
+          }
+        ]
+      },
+      "AP": {
+        "habilitada": true,
+        "nombre": "Aprobación de Pasantía",
+        "nombreEnFormulario": "Aprobación de Pasantía"
+      }
+    }
+  },
+  "faq": [
+    {
+      "pregunta": "🎯 ¿Cuántos créditos necesito para graduarme?",
+      "respuestaHtml": "Necesitas <strong>20 créditos académicos</strong> distribuidos en las categorías A-F, más la <strong>suficiencia en inglés</strong>. Se requiere 7 créditos de Pasantías como mínimo. (Obligatorio)"
+    },
+    {
+      "pregunta": "⏰ ¿Cuándo debo completar los créditos?",
+      "respuestaHtml": "Antes de presentar tu propuesta de PFC. Es recomendable ir completándolos durante la carrera."
+    },
+    {
+      "pregunta": "📝 ¿Cómo valido mis créditos?",
+      "respuestaHtml": "Presenta la documentación requerida al DEI a través de los formularios online correspondientes."
+    },
+    {
+      "pregunta": "🔍 ¿No aparecen mis créditos?",
+      "respuestaHtml": "Verifica el estado de tu solicitud en la mesa de entrada DEI Form."
+    }
+  ]
+}

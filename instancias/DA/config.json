@@ -1,0 +1,131 @@
+{
+  "direccion": {
+    "sigla": "DA",
+    "nombre": "COMPLETAR nombre completo de la dirección",
+    "universidad": "Universidad Católica \"Nuestra Señora de la Asunción\"",
+    "emailContacto": "COMPLETAR email de contacto de la dirección",
+    "desarrollador": {
+      "nombre": "",
+      "email": ""
+    },
+    "urlSitio": "",
+    "imagenCabecera": "COMPLETAR URL de la imagen de cabecera",
+    "favicon": "https://uc.edu.py/favicon.ico",
+    "lema": "",
+    "carreraPorDefecto": ""
+  },
+  "tema": {
+    "colorPrimario": "#1E2F8C",
+    "colorPrimarioHover": "#152266"
+  },
+  "infra": {
+    "spreadsheetId": "COMPLETAR ID de la Sheet (o \"\" si Carga y Consulta están vinculados a la hoja)",
+    "nombreHoja": "CREDITOS_ACADEMICOS",
+    "nombreHojaAuditoria": "AUDITORIA",
+    "parentFolderId": "COMPLETAR ID de la carpeta de Drive de alumnos",
+    "timeZone": "America/Asuncion"
+  },
+  "hoja": {
+    "filaInicioDatos": 5
+  },
+  "webapp": {
+    "cargaAccess": "DOMAIN",
+    "consultaAccess": "ANYONE_ANONYMOUS"
+  },
+  "consulta": {
+    "resultadosPorPagina": 5,
+    "minLongitudApellido": 3,
+    "maxBusquedasPorMinuto": 60
+  },
+  "esquema": {
+    "revisado": false,
+    "totalRequerido": 20,
+    "pasoCreditos": 0.5,
+    "categorias": {
+      "A": {
+        "nombre": "COMPLETAR nombre de la categoría A",
+        "nombreCorto": "COMPLETAR nombre corto",
+        "icono": "📘",
+        "limite": 12,
+        "codigoArchivo": "C",
+        "descripcion": "COMPLETAR descripción breve",
+        "detalles": [
+          {
+            "titulo": "📋 Requisitos y Especificaciones:",
+            "items": [
+              "COMPLETAR requisito"
+            ]
+          }
+        ]
+      },
+      "B": {
+        "nombre": "COMPLETAR nombre de la categoría B",
+        "nombreCorto": "COMPLETAR nombre corto",
+        "icono": "🎓",
+        "limite": 4,
+        "codigoArchivo": "Co",
+        "descripcion": "COMPLETAR descripción breve",
+        "detalles": []
+      },
+      "C": {
+        "nombre": "COMPLETAR nombre de la categoría C",
+        "nombreCorto": "COMPLETAR nombre corto",
+        "icono": "🧑‍🏫",
+        "limite": 10,
+        "codigoArchivo": "AY",
+        "descripcion": "COMPLETAR descripción breve",
+        "detalles": []
+      },
+      "D": {
+        "nombre": "COMPLETAR nombre de la categoría D",
+        "nombreCorto": "COMPLETAR nombre corto",
+        "icono": "🤝",
+        "limite": 2,
+        "codigoArchivo": "E",
+        "descripcion": "COMPLETAR descripción breve",
+        "detalles": []
+      },
+      "E": {
+        "nombre": "COMPLETAR nombre de la categoría E",
+        "nombreCorto": "COMPLETAR nombre corto",
+        "icono": "🛠️",
+        "limite": 10,
+        "minimo": 7,
+        "obligatoria": true,
+        "codigoArchivo": "Ps",
+        "descripcion": "COMPLETAR descripción breve",
+        "detalles": []
+      },
+      "F": {
+        "nombre": "COMPLETAR nombre de la categoría F",
+        "nombreCorto": "COMPLETAR nombre corto",
+        "icono": "📚",
+        "limite": 4,
+        "codigoArchivo": "Ot",
+        "descripcion": "COMPLETAR descripción breve",
+        "detalles": []
+      }
+    },
+    "especiales": {
+      "SI": {
+        "habilitada": true,
+        "nombre": "Suficiencia en Inglés",
+        "icono": "🇬🇧",
+        "nombreEnFormulario": "Aprobación de Suficiencia Inglés",
+        "descripcion": "COMPLETAR descripción del requisito",
+        "detalles": []
+      },
+      "AP": {
+        "habilitada": true,
+        "nombre": "Aprobación de Pasantía",
+        "nombreEnFormulario": "Aprobación de Pasantía"
+      }
+    }
+  },
+  "faq": [
+    {
+      "pregunta": "🎯 ¿Cuántos créditos necesito para graduarme?",
+      "respuestaHtml": "COMPLETAR respuesta"
+    }
+  ]
+}

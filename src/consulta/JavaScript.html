@@ -1,0 +1,583 @@
+<script>
+/**
+ * Lógica del cliente de Consulta.
+ *
+ * Todo dato que viene de la hoja pasa por escaparHTML antes de insertarse.
+ * Los límites, el total requerido y los nombres de categoría salen de
+ * APP.esquema: no hay valores de una dirección escritos acá.
+ */
+
+const estado = {
+  resultados: [],
+  pagina: 1,
+  vista: 'simplificada',
+  intervaloCarga: null
+};
+
+const ESQUEMA = APP.esquema;
+const CODIGOS = Object.keys(ESQUEMA.categorias);
+const USA_SI = Boolean(ESQUEMA.especiales && ESQUEMA.especiales.SI && ESQUEMA.especiales.SI.habilitada !== false);
+
+// ---------------------------------------------------------------------------
+// Utilidades
+// ---------------------------------------------------------------------------
+
+function escaparHTML(valor) {
+  return String(valor == null ? '' : valor)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Solo enlaces http(s); cualquier otra cosa (p. ej. javascript:) se descarta. */
+function urlSegura(url) {
+  try {
+    const parsed = new URL(String(url || '').trim());
+    return ['http:', 'https:'].indexOf(parsed.protocol) !== -1 ? parsed.href : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function esMovil() {
+  return window.innerWidth <= UI.MOBILE_BREAKPOINT;
+}
+
+function iniciales(nombre) {
+  return nombre.split(' ').map(n => n.charAt(0)).join('').substring(0, 2).toUpperCase();
+}
+
+// ---------------------------------------------------------------------------
+// Inicialización y eventos
+// ---------------------------------------------------------------------------
+
+function inicializarApp() {
+  mostrarHistorial();
+
+  ['matricula', 'apellido'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') buscarCreditos(); });
+  });
+  document.getElementById('btnBuscar').addEventListener('click', buscarCreditos);
+
+  document.querySelectorAll('input[name="vista-radio"]').forEach(radio => {
+    radio.addEventListener('change', () => cambiarVista(radio.value));
+  });
+
+  document.querySelectorAll('[data-detalles]').forEach(boton => {
+    boton.addEventListener('click', () => toggleDetails(boton.getAttribute('data-detalles'), boton));
+  });
+
+  // Delegación: los botones de resultados se regeneran en cada render.
+  document.getElementById('resultado').addEventListener('click', e => {
+    const pagina = e.target.closest('[data-pagina]');
+    if (pagina) irAPagina(Number(pagina.getAttribute('data-pagina')));
+    if (e.target.closest('#btnExportarPDF')) exportarAPDF();
+  });
+
+  window.addEventListener('resize', () => {
+    clearTimeout(window.resizeTimeout);
+    window.resizeTimeout = setTimeout(() => {
+      if (estado.resultados.length > 0) renderTablaPaginada();
+    }, 250);
+  });
+}
+
+function cambiarVista(tipoVista) {
+  estado.vista = tipoVista;
+  if (estado.resultados.length > 0) renderTablaPaginada();
+}
+
+// ---------------------------------------------------------------------------
+// Loader
+// ---------------------------------------------------------------------------
+
+function mostrarLoader() {
+  const loader = document.getElementById('loader');
+  if (loader) {
+    loader.style.display = 'block';
+    loader.style.opacity = '1';
+  }
+  const mensaje = document.getElementById('mensajeCarga');
+  if (!mensaje) return;
+  let indice = 0;
+  mensaje.textContent = UI.LOADING_MESSAGES[0];
+  estado.intervaloCarga = setInterval(() => {
+    indice = (indice + 1) % UI.LOADING_MESSAGES.length;
+    mensaje.textContent = UI.LOADING_MESSAGES[indice];
+  }, UI.LOADER_MESSAGE_INTERVAL);
+}
+
+function ocultarLoader() {
+  if (estado.intervaloCarga) {
+    clearInterval(estado.intervaloCarga);
+    estado.intervaloCarga = null;
+  }
+  const loader = document.getElementById('loader');
+  if (loader) {
+    loader.style.opacity = '0';
+    setTimeout(() => { loader.style.display = 'none'; }, UI.LOADER_FADE_DURATION);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Búsqueda
+// ---------------------------------------------------------------------------
+
+function mostrarError(campo, mensaje) {
+  const elemento = document.getElementById(campo + 'Error');
+  if (!elemento) return;
+  if (mensaje) elemento.textContent = mensaje;
+  elemento.classList.remove('d-none');
+}
+
+function ocultarErrores() {
+  ['matriculaError', 'apellidoError'].forEach(id => {
+    const elemento = document.getElementById(id);
+    if (elemento) elemento.classList.add('d-none');
+  });
+}
+
+function buscarCreditos() {
+  const matricula = document.getElementById('matricula').value.trim();
+  const apellido = document.getElementById('apellido').value.trim();
+  ocultarErrores();
+
+  if (matricula && !/^[a-zA-Z0-9]+$/.test(matricula)) {
+    mostrarError('matricula');
+    return;
+  }
+  if (apellido && apellido.length < UI.MIN_APELLIDO_LENGTH) {
+    mostrarError('apellido');
+    return;
+  }
+  if (!matricula && !apellido) {
+    mostrarError('matricula', 'Por favor ingrese una matrícula o apellido para buscar.');
+    return;
+  }
+
+  mostrarLoader();
+  const tipo = matricula ? 'matricula' : 'apellido';
+  const valor = matricula || apellido;
+
+  const runner = google.script.run
+    .withSuccessHandler(res => {
+      ocultarLoader();
+      if (res && res.ok) {
+        mostrarResultados(res.data);
+        guardarEnHistorial(tipo, valor);
+      } else {
+        mostrarErrorBusqueda(res ? res.error : 'Respuesta vacía del servidor');
+      }
+    })
+    .withFailureHandler(err => {
+      ocultarLoader();
+      mostrarErrorBusqueda(err.message);
+    });
+
+  if (matricula) runner.buscarCreditos(matricula);
+  else runner.buscarCreditosPorApellido(apellido);
+}
+
+function mostrarErrorBusqueda(mensaje) {
+  document.getElementById('resultado').innerHTML = `
+    <div class="alert alert-danger">
+      <h5>❌ Error en la búsqueda</h5>
+      <p>Error: ${escaparHTML(mensaje || 'No se encontraron resultados')}</p>
+      <hr>
+      <p class="mb-0"><strong>Intenta nuevamente</strong> o contacta al ${escaparHTML(APP.direccion.sigla)} si el problema persiste.</p>
+    </div>`;
+}
+
+function mostrarResultados(resultados) {
+  estado.resultados = Array.isArray(resultados) ? resultados : [];
+  estado.pagina = 1;
+  renderTablaPaginada();
+}
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
+
+function colorProgreso(porcentaje) {
+  if (porcentaje === 100) return '#28a745';
+  return porcentaje >= 75 ? '#ffc107' : '#dc3545';
+}
+
+function crearBarra(actual, maximo) {
+  const porcentaje = Math.min((actual / maximo) * 100, 100);
+  return `
+    <div style="position: relative;">
+      <span style="font-weight: bold;">${actual}/${maximo}</span>
+      <div style="width: 100%; height: 6px; background-color: #e9ecef; border-radius: 3px; margin-top: 3px;">
+        <div style="width: ${porcentaje}%; height: 100%; background-color: ${colorProgreso(porcentaje)}; border-radius: 3px; transition: width 0.3s ease;"></div>
+      </div>
+    </div>`;
+}
+
+function crearBarraMovil(actual, maximo, etiqueta) {
+  const porcentaje = Math.min((actual / maximo) * 100, 100);
+  const clase = porcentaje === 100 ? 'complete' : porcentaje >= 50 ? 'partial' : 'incomplete';
+  return `
+    <div class="mobile-credit-item">
+      <div class="mobile-credit-label">${escaparHTML(etiqueta)}</div>
+      <div class="mobile-credit-value">${actual}/${maximo}</div>
+      <div class="mobile-progress-bar">
+        <div class="mobile-progress-fill ${clase}" style="width: ${porcentaje}%;"></div>
+      </div>
+    </div>`;
+}
+
+function botonDetalles(alumno, movil) {
+  const url = urlSegura(alumno.enlace);
+  if (movil) {
+    return url
+      ? `<a href="${escaparHTML(url)}" target="_blank" rel="noopener" class="mobile-detail-btn primary">Ver Detalles</a>`
+      : '<span class="mobile-detail-btn disabled">Sin detalles</span>';
+  }
+  return url
+    ? `<a href="${escaparHTML(url)}" target="_blank" rel="noopener" class="detail-btn btn btn-primary">Ver Detalles</a>`
+    : '<button class="detail-btn btn btn-secondary" disabled style="opacity:0.7;cursor:not-allowed;">Sin detalles disponibles</button>';
+}
+
+function textoTotal(alumno) {
+  return `${alumno.total}/${ESQUEMA.totalRequerido}`;
+}
+
+function encabezadoCategoria(codigo) {
+  const cat = ESQUEMA.categorias[codigo];
+  let html = `${escaparHTML(cat.nombre)} (${codigo}) máx: ${cat.limite}`;
+  if (cat.minimo) html += `<br><span class="requisito-obligatorio">(Mínimo: ${cat.minimo})</span>`;
+  else if (cat.obligatoria) html += '<br><span class="requisito-obligatorio">(Obligatorio)</span>';
+  return html;
+}
+
+function construirFila(alumno) {
+  const celdaSI = USA_SI
+    ? `<td style="text-align: center; color: ${alumno.siAprobado ? '#28a745' : '#dc3545'}; font-weight: bold;">
+         ${alumno.siAprobado ? 'APROBADO ✅' : 'NO APROBADO ❌'}
+       </td>`
+    : '';
+  const celdasCategorias = CODIGOS.map(codigo => {
+    const pendiente = alumno.minimosPendientes.indexOf(codigo) !== -1;
+    const aviso = pendiente ? `<small class="text-danger">Faltan ${ESQUEMA.categorias[codigo].minimo - alumno.categorias[codigo]} para el mínimo</small>` : '';
+    return `<td>${crearBarra(alumno.categorias[codigo], ESQUEMA.categorias[codigo].limite)}${aviso}</td>`;
+  }).join('');
+  const colorTotal = alumno.totalCompleto ? '#28a745' : '#dc3545';
+  const sufijoTotal = alumno.totalCompleto ? ' ✅' : ` (Faltan ${alumno.faltan})`;
+
+  return `
+    <tr>
+      <td>${escaparHTML(alumno.nombre)}</td>
+      <td>${escaparHTML(alumno.carrera)}</td>
+      ${celdaSI}
+      ${celdasCategorias}
+      <td style="font-weight: bold; color: ${colorTotal};">${textoTotal(alumno)}${sufijoTotal}</td>
+    </tr>
+    <tr><td colspan="${CODIGOS.length + (USA_SI ? 4 : 3)}" class="text-center">${botonDetalles(alumno, false)}</td></tr>`;
+}
+
+function construirFilaSimplificada(alumno) {
+  const celdaSI = USA_SI
+    ? `<td><span class="badge ${alumno.siAprobado ? 'bg-success' : 'bg-danger'}">${alumno.siAprobado ? 'Aprobado' : 'No Aprobado'}</span></td>`
+    : '';
+  return `
+    <tr>
+      <td><strong>${escaparHTML(alumno.nombre || 'N/A')}</strong></td>
+      <td>${escaparHTML(alumno.matricula || 'N/A')}</td>
+      ${celdaSI}
+      <td>
+        <span class="badge ${alumno.totalCompleto ? 'bg-success' : 'bg-warning'} fs-6">${textoTotal(alumno)}</span>
+        <small class="text-muted">(${alumno.totalCompleto ? 'Completo' : 'Incompleto'})</small>
+      </td>
+    </tr>`;
+}
+
+function construirTarjetaMovil(alumno, completa) {
+  const nombre = alumno.nombre || 'Estudiante';
+  const carrera = alumno.carrera || APP.direccion.carreraPorDefecto || '';
+  const claseTotal = alumno.totalCompleto ? 'approved' : 'incomplete';
+  const subtextoTotal = alumno.totalCompleto ? 'Completo' : `Faltan ${alumno.faltan}`;
+
+  const estadoSI = USA_SI
+    ? `<div class="mobile-status-item ${alumno.siAprobado ? 'approved' : 'incomplete'}">
+         <div class="mobile-status-label">${escaparHTML(ESQUEMA.especiales.SI.icono || '')} Inglés</div>
+         <div class="mobile-status-value ${alumno.siAprobado ? 'approved' : 'incomplete'}">${alumno.siAprobado ? 'APROBADO ✅' : 'NO APROBADO ❌'}</div>
+       </div>`
+    : '';
+
+  const grilla = completa
+    ? `<div class="mobile-credits-grid">
+         ${CODIGOS.map(codigo => {
+           const cat = ESQUEMA.categorias[codigo];
+           return crearBarraMovil(alumno.categorias[codigo], cat.limite, `${cat.icono || ''} ${cat.nombreCorto || cat.nombre} (${codigo})`);
+         }).join('')}
+       </div>`
+    : '';
+
+  return `
+    <div class="mobile-student-card">
+      <div class="mobile-card-header">
+        <div class="mobile-student-avatar">${escaparHTML(iniciales(nombre))}</div>
+        <div class="mobile-student-info">
+          <h6>${escaparHTML(nombre)}</h6>
+          <div class="text-muted">${escaparHTML(carrera)} • ${escaparHTML(alumno.matricula || 'N/A')}</div>
+        </div>
+      </div>
+      <div class="mobile-status-row">
+        ${estadoSI}
+        <div class="mobile-status-item ${claseTotal}">
+          <div class="mobile-status-label">📊 ${completa ? 'Total' : 'Créditos'}</div>
+          <div class="mobile-status-value ${claseTotal}">${textoTotal(alumno)}</div>
+        </div>
+      </div>
+      ${grilla}
+      <div class="mobile-total-credits ${alumno.totalCompleto ? 'complete' : ''}">
+        <div class="mobile-total-label">Total de Créditos</div>
+        <div class="mobile-total-value">${textoTotal(alumno)}</div>
+        <div style="font-size: 12px; opacity: 0.9;">${subtextoTotal}</div>
+      </div>
+      <div class="mobile-card-actions">${botonDetalles(alumno, true)}</div>
+    </div>`;
+}
+
+function tablaSimplificada(datos) {
+  return `
+    <table class="table table-bordered table-hover">
+      <thead>
+        <tr>
+          <th>👤 Estudiante</th>
+          <th>🎓 Matrícula</th>
+          ${USA_SI ? `<th>${escaparHTML(ESQUEMA.especiales.SI.icono || '')} ${escaparHTML(ESQUEMA.especiales.SI.nombre)}</th>` : ''}
+          <th>📊 Total de Créditos</th>
+        </tr>
+      </thead>
+      <tbody>${datos.map(construirFilaSimplificada).join('')}</tbody>
+    </table>`;
+}
+
+function tablaCompleta(datos) {
+  return `
+    <table class="table table-bordered table-hover">
+      <thead>
+        <tr>
+          <th>Alumno/a</th>
+          <th>Carrera</th>
+          ${USA_SI ? `<th>${escaparHTML(ESQUEMA.especiales.SI.nombre)}<br><span class="requisito-obligatorio">(Requisito obligatorio)</span></th>` : ''}
+          ${CODIGOS.map(codigo => `<th>${encabezadoCategoria(codigo)}</th>`).join('')}
+          <th>Total Créditos<br><span class="requisito-obligatorio">(Meta: ${ESQUEMA.totalRequerido})</span></th>
+        </tr>
+      </thead>
+      <tbody>${datos.map(construirFila).join('')}</tbody>
+    </table>`;
+}
+
+function renderTablaPaginada() {
+  const resultadoDiv = document.getElementById('resultado');
+  const controlesVista = document.getElementById('controles-vista');
+  if (!resultadoDiv) return;
+
+  if (estado.resultados.length === 0) {
+    resultadoDiv.innerHTML = `
+      <div class="alert alert-warning text-center">
+        <h5>📭 Alumno no encontrado</h5>
+        <p>No se encontró información de créditos para la búsqueda ingresada.</p>
+        <hr>
+        <p class="mb-0">Verifica que la matrícula o el apellido estén correctamente escritos.<br>
+        Si crees que es un error, contacta al ${escaparHTML(APP.direccion.sigla)}.</p>
+      </div>`;
+    if (controlesVista) controlesVista.classList.add('d-none');
+    return;
+  }
+  if (controlesVista) controlesVista.classList.remove('d-none');
+
+  const totalPaginas = Math.ceil(estado.resultados.length / UI.RESULTS_PER_PAGE);
+  const inicio = (estado.pagina - 1) * UI.RESULTS_PER_PAGE;
+  const datos = estado.resultados.slice(inicio, inicio + UI.RESULTS_PER_PAGE);
+  const completa = estado.vista === 'completa';
+  const movil = esMovil();
+
+  const tabla = completa ? tablaCompleta(datos) : tablaSimplificada(datos);
+  const tarjetas = movil
+    ? `<div class="mobile-card-container">${datos.map(a => construirTarjetaMovil(a, completa)).join('')}</div>`
+    : '';
+  const boton = movil
+    ? '<button id="btnExportarPDF" type="button" class="btn btn-danger btn-sm">📄 PDF</button>'
+    : '<button id="btnExportarPDF" type="button" class="btn btn-danger"><i class="bi bi-file-earmark-pdf"></i> Exportar a PDF</button>';
+
+  resultadoDiv.innerHTML = `
+    <div id="resultados-container" class="mt-4 ${completa ? 'vista-completa' : 'vista-simplificada'}">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">${completa ? '📊 Vista Completa' : '📋 Vista Simplificada'}</h4>
+        ${boton}
+      </div>
+      ${tarjetas}
+      <div class="table-responsive ${movil ? 'd-none' : ''}" id="tabla-resultados">${tabla}</div>
+      <div class="text-center mt-3">${renderPaginacion(totalPaginas)}</div>
+    </div>`;
+}
+
+function renderPaginacion(totalPaginas) {
+  let botones = '';
+  for (let i = 1; i <= totalPaginas; i++) {
+    botones += `<button type="button" class="pagination-btn ${i === estado.pagina ? 'active' : ''}" data-pagina="${i}">${i}</button>`;
+  }
+  return botones;
+}
+
+function irAPagina(pagina) {
+  estado.pagina = pagina;
+  renderTablaPaginada();
+}
+
+// ---------------------------------------------------------------------------
+// Historial (localStorage del navegador)
+// ---------------------------------------------------------------------------
+
+function leerHistorial(clave) {
+  try {
+    return JSON.parse(localStorage.getItem(clave)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function guardarEnHistorial(tipo, valor) {
+  if (!valor || !tipo) return;
+  const clave = 'historial-' + tipo;
+  const historial = [valor].concat(leerHistorial(clave).filter(item => item !== valor)).slice(0, UI.MAX_HISTORIAL_ITEMS);
+  try {
+    localStorage.setItem(clave, JSON.stringify(historial));
+  } catch (e) {
+    // Sin almacenamiento disponible: el historial es solo una comodidad.
+  }
+  mostrarHistorial();
+}
+
+function mostrarHistorial() {
+  const lista = document.getElementById('historialLista');
+  if (!lista) return;
+  lista.innerHTML = '';
+
+  const todos = leerHistorial('historial-matricula').map(v => ({ tipo: 'matricula', valor: v }))
+    .concat(leerHistorial('historial-apellido').map(v => ({ tipo: 'apellido', valor: v })));
+
+  todos.slice(0, UI.MAX_HISTORIAL_ITEMS).forEach(item => {
+    const li = document.createElement('li');
+    li.className = 'list-group-item list-group-item-action';
+    li.textContent = `${item.valor} (${item.tipo})`;
+    li.style.cursor = 'pointer';
+    li.onclick = () => {
+      document.getElementById('matricula').value = item.tipo === 'matricula' ? item.valor : '';
+      document.getElementById('apellido').value = item.tipo === 'apellido' ? item.valor : '';
+      buscarCreditos();
+    };
+    lista.appendChild(li);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Detalles de categorías
+// ---------------------------------------------------------------------------
+
+function toggleDetails(idDetalles, boton) {
+  const detalles = document.getElementById(idDetalles);
+  if (!detalles || !boton) return;
+  const abrir = !detalles.classList.contains('show');
+  detalles.classList.toggle('show', abrir);
+  boton.textContent = abrir ? 'Ocultar detalles' : 'Ver más detalles';
+  boton.style.background = abrir
+    ? 'linear-gradient(135deg, #dc3545 0%, #fd7e14 100%)'
+    : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+}
+
+// ---------------------------------------------------------------------------
+// Exportación a PDF
+// ---------------------------------------------------------------------------
+
+function exportarAPDF() {
+  const nombreAlumno = (estado.resultados[0] && estado.resultados[0].nombre) || 'Alumno';
+  const resultadoDiv = document.getElementById('resultado');
+  const overlay = document.createElement('div');
+  overlay.className = 'pdf-loading-overlay';
+  overlay.innerHTML = '<div class="pdf-loading-content"><div class="spinner"></div><p>Generando PDF, por favor espere...</p></div>';
+  resultadoDiv.appendChild(overlay);
+  const quitarOverlay = () => { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+
+  try {
+    const { jsPDF } = window.jspdf;
+    setTimeout(() => {
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      const anchoPagina = doc.internal.pageSize.getWidth();
+      const altoPagina = doc.internal.pageSize.getHeight();
+      const centroX = anchoPagina / 2;
+
+      doc.setFontSize(18);
+      doc.text(`Créditos Académicos ${APP.direccion.sigla}`, centroX, 15, { align: 'center' });
+      doc.setFontSize(14);
+      doc.text('Informe de: ' + nombreAlumno, centroX, 25, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text('Fecha de generación: ' + new Date().toLocaleDateString('es-ES'), centroX, 32, { align: 'center' });
+
+      const movil = esMovil();
+      const elemento = (movil && document.querySelector('.mobile-card-container')) || document.getElementById('tabla-resultados');
+      if (!elemento) {
+        alert('No se pudo encontrar el contenido para exportar.');
+        quitarOverlay();
+        return;
+      }
+
+      // Forzar ancho completo durante la captura (necesario en móviles).
+      const estiloOriginal = elemento.style.cssText;
+      elemento.style.width = '100%';
+      elemento.style.maxWidth = 'none';
+      elemento.style.overflow = 'visible';
+      if (movil) {
+        elemento.style.transform = 'scale(1)';
+        elemento.style.transformOrigin = 'top left';
+      }
+
+      html2canvas(elemento, {
+        scale: movil ? 1.5 : 2,
+        useCORS: true,
+        logging: false,
+        allowTaint: true,
+        scrollX: 0,
+        scrollY: 0,
+        width: elemento.scrollWidth,
+        height: elemento.scrollHeight,
+        windowWidth: document.documentElement.offsetWidth,
+        windowHeight: document.documentElement.offsetHeight
+      }).then(canvas => {
+        elemento.style.cssText = estiloOriginal;
+        const margenSuperior = 40;
+        const margenInferior = 15;
+        const espacioDisponible = altoPagina - margenSuperior - margenInferior;
+        let ancho = anchoPagina - 20;
+        let alto = canvas.height * ancho / canvas.width;
+        let margenLateral = 10;
+        if (alto > espacioDisponible) {
+          alto = espacioDisponible;
+          ancho = canvas.width * alto / canvas.height;
+          margenLateral = (anchoPagina - ancho) / 2;
+        }
+        doc.addImage(canvas.toDataURL('image/png'), 'PNG', margenLateral, margenSuperior, ancho, alto);
+        doc.setFontSize(8);
+        doc.text(`${APP.direccion.universidad} - ${APP.direccion.sigla}`, centroX, altoPagina - 10, { align: 'center' });
+        doc.save('Creditos_' + nombreAlumno.replace(/\s+/g, '_') + '.pdf');
+        quitarOverlay();
+      }).catch(err => {
+        elemento.style.cssText = estiloOriginal;
+        console.error('Error al generar el PDF:', err);
+        alert('Ha ocurrido un error al generar el PDF. Por favor, intenta nuevamente.');
+        quitarOverlay();
+      });
+    }, 500);
+  } catch (error) {
+    console.error('Error al generar el PDF:', error);
+    alert('Ha ocurrido un error al generar el PDF. Por favor, intenta nuevamente.');
+    quitarOverlay();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', inicializarApp);
+</script>
