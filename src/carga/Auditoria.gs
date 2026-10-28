@@ -16,6 +16,10 @@ function obtenerHojaAuditoria() {
     hoja.appendRow(ENCABEZADOS_AUDITORIA);
     hoja.setFrozenRows(1);
   }
+  // Texto plano para que Sheets no convierta "0000003" en 3. Se aplica siempre
+  // para corregir también hojas creadas antes de este cambio.
+  const columnaMatricula = ENCABEZADOS_AUDITORIA.indexOf('Matrícula') + 1;
+  hoja.getRange(1, columnaMatricula, hoja.getMaxRows(), 1).setNumberFormat('@');
   return hoja;
 }
 

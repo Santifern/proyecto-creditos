@@ -57,11 +57,9 @@
         <div class="form-col form-col-fixed">
           <label class="form-label" for="creditos">Créditos</label>
           <input class="form-control"
-                 type="number"
+                 type="text"
+                 inputmode="decimal"
                  id="creditos"
-                 min="<?= CONFIG.esquema.pasoCreditos ?>"
-                 max="<?= CONFIG.esquema.totalRequerido ?>"
-                 step="<?= CONFIG.esquema.pasoCreditos ?>"
                  placeholder="1.5"
                  list="creditValues"
                  required>
@@ -287,8 +285,8 @@
 
   function validarCampoCreditos() {
     const campo = elementos.creditos;
-    const valor = parseFloat(campo.value);
-    const limite = limiteDe(elementos.categoria.value);
+    // Acepta coma decimal (2,5), igual que el servidor.
+    const valor = Number(campo.value.trim().replace(',', '.'));
     const paso = APP.esquema.pasoCreditos;
 
     if (campo.value === '') {
@@ -321,7 +319,6 @@
       campo.placeholder = '1.5';
       campo.required = true;
       const limite = limiteDe(val);
-      campo.max = limite;
       const texto = elementos.categoria.options[elementos.categoria.selectedIndex].text;
       aviso.innerHTML = `<small class="text-info">ℹ️ Límite para ${escaparHTML(texto)}: ${limite} créditos</small>`;
       aviso.style.display = val ? 'block' : 'none';

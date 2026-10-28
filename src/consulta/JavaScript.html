@@ -243,6 +243,13 @@ function textoTotal(alumno) {
   return `${alumno.total}/${ESQUEMA.totalRequerido}`;
 }
 
+/** "Completo" solo si se cumplen total, mínimos y SI; si el total alcanza pero falta otra cosa, no dice "Faltan 0". */
+function textoEstado(alumno) {
+  if (alumno.requisitosCumplidos) return 'Completo';
+  if (alumno.faltan > 0) return `Faltan ${alumno.faltan}`;
+  return 'Requisitos pendientes';
+}
+
 function encabezadoCategoria(codigo) {
   const cat = ESQUEMA.categorias[codigo];
   let html = `${escaparHTML(cat.nombre)} (${codigo}) máx: ${cat.limite}`;
@@ -262,8 +269,8 @@ function construirFila(alumno) {
     const aviso = pendiente ? `<small class="text-danger">Faltan ${ESQUEMA.categorias[codigo].minimo - alumno.categorias[codigo]} para el mínimo</small>` : '';
     return `<td>${crearBarra(alumno.categorias[codigo], ESQUEMA.categorias[codigo].limite)}${aviso}</td>`;
   }).join('');
-  const colorTotal = alumno.totalCompleto ? '#28a745' : '#dc3545';
-  const sufijoTotal = alumno.totalCompleto ? ' ✅' : ` (Faltan ${alumno.faltan})`;
+  const colorTotal = alumno.requisitosCumplidos ? '#28a745' : '#dc3545';
+  const sufijoTotal = alumno.requisitosCumplidos ? ' ✅' : ` (${textoEstado(alumno)})`;
 
   return `
     <tr>
@@ -286,8 +293,8 @@ function construirFilaSimplificada(alumno) {
       <td>${escaparHTML(alumno.matricula || 'N/A')}</td>
       ${celdaSI}
       <td>
-        <span class="badge ${alumno.totalCompleto ? 'bg-success' : 'bg-warning'} fs-6">${textoTotal(alumno)}</span>
-        <small class="text-muted">(${alumno.totalCompleto ? 'Completo' : 'Incompleto'})</small>
+        <span class="badge ${alumno.requisitosCumplidos ? 'bg-success' : 'bg-warning'} fs-6">${textoTotal(alumno)}</span>
+        <small class="text-muted">(${alumno.requisitosCumplidos ? 'Completo' : 'Incompleto'})</small>
       </td>
     </tr>`;
 }
@@ -295,8 +302,8 @@ function construirFilaSimplificada(alumno) {
 function construirTarjetaMovil(alumno, completa) {
   const nombre = alumno.nombre || 'Estudiante';
   const carrera = alumno.carrera || APP.direccion.carreraPorDefecto || '';
-  const claseTotal = alumno.totalCompleto ? 'approved' : 'incomplete';
-  const subtextoTotal = alumno.totalCompleto ? 'Completo' : `Faltan ${alumno.faltan}`;
+  const claseTotal = alumno.requisitosCumplidos ? 'approved' : 'incomplete';
+  const subtextoTotal = textoEstado(alumno);
 
   const estadoSI = USA_SI
     ? `<div class="mobile-status-item ${alumno.siAprobado ? 'approved' : 'incomplete'}">
@@ -331,7 +338,7 @@ function construirTarjetaMovil(alumno, completa) {
         </div>
       </div>
       ${grilla}
-      <div class="mobile-total-credits ${alumno.totalCompleto ? 'complete' : ''}">
+      <div class="mobile-total-credits ${alumno.requisitosCumplidos ? 'complete' : ''}">
         <div class="mobile-total-label">Total de Créditos</div>
         <div class="mobile-total-value">${textoTotal(alumno)}</div>
         <div style="font-size: 12px; opacity: 0.9;">${subtextoTotal}</div>
